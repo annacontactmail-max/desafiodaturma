@@ -3,20 +3,62 @@
    app.js
    ========================================================= */
 
-const KEY = "desafioTurmaV2";
+/* -------------------------
+   CONFIGURAÇÃO
+------------------------- */
 
-const defaultData = {
+const SUPABASE_URL = window.SUPABASE_URL;
+const SUPABASE_KEY = window.SUPABASE_ANON_KEY;
+
+const STORAGE_KEY = "desafioTurmaV2";
+
+let supabaseClient = null;
+let classroomId = null;
+let adminUnlocked = false;
+let data = null;
+let history = [];
+
+
+/* -------------------------
+   DADOS INICIAIS
+------------------------- */
+
+const DEFAULT_DATA = {
   className: "Turma",
   pin: "1234",
   score: 0,
 
   levels: [
-    { points: 20, label: "Sair mais cedo", emoji: "🟦" },
-    { points: 35, label: "Aula livre", emoji: "🟩" },
-    { points: 50, label: "Torneio", emoji: "🟨" },
-    { points: 70, label: "Aula na rua", emoji: "🟧" },
-    { points: 100, label: "Festa 1h", emoji: "🟪" },
-    { points: 130, label: "Festa 2h", emoji: "🏆" }
+    {
+      points: 20,
+      label: "Sair mais cedo",
+      emoji: "🟦"
+    },
+    {
+      points: 35,
+      label: "Aula livre",
+      emoji: "🟩"
+    },
+    {
+      points: 50,
+      label: "Torneio",
+      emoji: "🟨"
+    },
+    {
+      points: 70,
+      label: "Aula na rua",
+      emoji: "🟧"
+    },
+    {
+      points: 100,
+      label: "Festa 1h",
+      emoji: "🟪"
+    },
+    {
+      points: 130,
+      label: "Festa 2h",
+      emoji: "🏆"
+    }
   ],
 
   actions: [
@@ -49,103 +91,24 @@ const defaultData = {
 };
 
 
-/* =========================================================
-   ESTADO
-   ========================================================= */
+/* -------------------------
+   FUNÇÃO $
+------------------------- */
 
-let data = loadLocalData();
-let history = [];
-
-let adminUnlocked = false;
-let classroomId = null;
-
-let supabaseClient = null;
-
-
-/* =========================================================
-   ELEMENTOS
-   ========================================================= */
-
-const $ = (selector) => document.querySelector(selector);
-
-
-/* =========================================================
-   SUPABASE
-   ========================================================= */
-
-function initSupabase() {
-  try {
-    if (
-      typeof window.supabase !== "undefined" &&
-      typeof SUPABASE_URL !== "undefined" &&
-      typeof SUPABASE_KEY !== "undefined"
-    ) {
-      supabaseClient = window.supabase.createClient(
-        SUPABASE_URL,
-        SUPABASE_KEY
-      );
-
-      console.log("Supabase ligado.");
-    } else {
-      console.warn(
-        "Supabase não está configurado. A aplicação irá usar armazenamento local."
-      );
-    }
-  } catch (error) {
-    console.error("Erro ao iniciar Supabase:", error);
-    supabaseClient = null;
-  }
+function $(selector) {
+  return document.querySelector(selector);
 }
 
 
-/* =========================================================
-   DADOS LOCAIS
-   ========================================================= */
-
-function loadLocalData() {
-  try {
-    const saved = localStorage.getItem(KEY);
-
-    if (!saved) {
-      return structuredClone(defaultData);
-    }
-
-    const parsed = JSON.parse(saved);
-
-    return {
-      ...structuredClone(defaultData),
-      ...parsed,
-      score: Math.max(0, Number(parsed.score || 0)),
-      levels: Array.isArray(parsed.levels)
-        ? parsed.levels
-        : structuredClone(defaultData.levels),
-      actions: Array.isArray(parsed.actions)
-        ? parsed.actions
-        : structuredClone(defaultData.actions)
-    };
-  } catch (error) {
-    console.error("Erro ao carregar dados locais:", error);
-    return structuredClone(defaultData);
-  }
-}
-
-
-function saveLocalData() {
-  try {
-    data.score = Math.max(0, Number(data.score || 0));
-
-    localStorage.setItem(KEY, JSON.stringify(data));
-  } catch (error) {
-    console.error("Erro ao guardar dados locais:", error);
-  }
-}
-
-
-/* =========================================================
+/* -------------------------
    INICIALIZAÇÃO
-   ========================================================= */
+------------------------- */
 
 document.addEventListener("DOMContentLoaded", async () => {
+
+  console.log("Desafio da Turma: iniciar aplicação...");
+
+  data = loadLocalData();
 
   initSupabase();
 
@@ -153,1206 +116,283 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   render();
 
-  await loadFromSupabase();
+  await loadClassroom();
 
   render();
 
+  /*
+    Atualiza os dados periodicamente.
+    Só fazemos isto se não estivermos a editar
+    a administração.
+  */
+
   setInterval(async () => {
-    await loadFromSupabase();
-    render();
+
+    if (!adminUnlocked) {
+      await loadClassroom();
+      render();
+    }
+
   }, 5000);
+
 });
 
 
 /* =========================================================
-   EVENTOS
-   ========================================================= */
+   SUPABASE
+========================================================= */
 
-function setupEvents() {
+function initSupabase() {
 
-  // Abrir administração
-  const adminBtn = $("#adminBtn");
+  try {
 
-  if (adminBtn) {
-    adminBtn.addEventListener("click", openAdmin);
-  }
+    if (
+      !window.supabase ||
+      !SUPABASE_URL ||
+      !SUPABASE_KEY
+    ) {
 
+      console.error(
+        "Configuração do Supabase não encontrada."
+      );
 
-  // Fechar administração
-  const closeAdmin = $("#closeAdmin");
-
-  if (closeAdmin) {
-    closeAdmin.addEventListener("click", closeAdminModal);
-  }
-
-
-  // Entrar na administração
-  const unlockBtn = $("#unlockBtn");
-
-  if (unlockBtn) {
-    unlockBtn.addEventListener("click", unlockAdmin);
-  }
+      return;
+    }
 
 
-  // Enter no campo PIN
-  const pinInput = $("#pinInput");
-
-  if (pinInput) {
-    pinInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        unlockAdmin();
-      }
-    });
-  }
+    supabaseClient =
+      window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_KEY
+      );
 
 
-  // Guardar configurações
-  const adminForm = $("#adminForm");
+    console.log(
+      "Supabase ligado corretamente."
+    );
 
-  if (adminForm) {
-    adminForm.addEventListener("submit", saveAdminSettings);
-  }
+  } catch (error) {
 
+    console.error(
+      "Erro ao iniciar Supabase:",
+      error
+    );
 
-  // Reset
-  const resetBtn = $("#resetBtn");
-
-  if (resetBtn) {
-    resetBtn.addEventListener("click", resetClass);
-  }
-
-
-  // Limpar histórico
-  const clearHistory = $("#clearHistory");
-
-  if (clearHistory) {
-    clearHistory.addEventListener("click", clearHistoryData);
-  }
-
-
-  // Sair da administração
-  const adminLogout = $("#adminLogout");
-
-  if (adminLogout) {
-    adminLogout.addEventListener("click", closeAdminModal);
   }
 }
 
 
 /* =========================================================
-   ADMINISTRAÇÃO
-   ========================================================= */
+   LOCAL STORAGE
+========================================================= */
 
-function openAdmin() {
+function loadLocalData() {
 
-  adminUnlocked = false;
+  try {
 
-  const modal = $("#adminModal");
-
-  if (!modal) return;
-
-  modal.classList.remove("hidden");
-
-  showPinArea();
-
-  loadAdmin();
-}
+    const saved =
+      localStorage.getItem(STORAGE_KEY);
 
 
-function closeAdminModal() {
+    if (!saved) {
 
-  adminUnlocked = false;
+      return clone(DEFAULT_DATA);
 
-  const modal = $("#adminModal");
-
-  if (modal) {
-    modal.classList.add("hidden");
-  }
-
-  render();
-}
-
-
-function showPinArea() {
-
-  const pinArea = $("#pinArea");
-  const adminForm = $("#adminForm");
-
-  if (pinArea) {
-    pinArea.classList.remove("hidden");
-  }
-
-  if (adminForm) {
-    adminForm.classList.add("hidden");
-  }
-
-  const pinInput = $("#pinInput");
-
-  if (pinInput) {
-    pinInput.value = "";
-    pinInput.focus();
-  }
-}
-
-
-function unlockAdmin() {
-
-  const pinInput = $("#pinInput");
-
-  if (!pinInput) return;
-
-  const enteredPin = pinInput.value.trim();
-
-  if (!enteredPin) {
-    alert("Introduza o PIN.");
-    return;
-  }
-
-  if (enteredPin === String(data.pin)) {
-
-    adminUnlocked = true;
-
-    const pinArea = $("#pinArea");
-    const adminForm = $("#adminForm");
-
-    if (pinArea) {
-      pinArea.classList.add("hidden");
     }
 
-    if (adminForm) {
-      adminForm.classList.remove("hidden");
-    }
 
-    loadAdmin();
-
-    updateAdminVisibility();
-
-  } else {
-
-    alert("PIN incorreto.");
-
-    pinInput.value = "";
-    pinInput.focus();
-  }
-}
+    const parsed =
+      JSON.parse(saved);
 
 
-/* =========================================================
-   ADMIN - CARREGAR CONFIGURAÇÕES
-   ========================================================= */
+    return {
 
-function loadAdmin() {
+      ...clone(DEFAULT_DATA),
 
-  const classInput = $("#classInput");
+      ...parsed,
 
-  if (classInput) {
-    classInput.value = data.className || "";
-  }
-
-
-  /*
-    IMPORTANTE:
-    Nunca mostramos o PIN atual neste campo.
-    O administrador só escreve aqui se quiser alterá-lo.
-  */
-
-  const newPinInput = $("#newPinInput");
-
-  if (newPinInput) {
-    newPinInput.value = "";
-    newPinInput.placeholder =
-      "Deixe vazio para manter o PIN atual";
-  }
-
-
-  const levelInputs = $("#levelInputs");
-
-  if (!levelInputs) return;
-
-  levelInputs.innerHTML = "";
-
-
-  data.levels.forEach((level, index) => {
-
-    const row = document.createElement("div");
-
-    row.className = "admin-level-row";
-
-    row.innerHTML = `
-      <input
-        type="number"
-        min="0"
-        value="${Number(level.points) || 0}"
-        data-level-points="${index}"
-        placeholder="Pontos"
-      >
-
-      <input
-        type="text"
-        value="${escapeHtml(level.label || "")}"
-        data-level-label="${index}"
-        placeholder="Nome do prémio"
-      >
-
-      <input
-        type="text"
-        value="${escapeHtml(level.emoji || "")}"
-        data-level-emoji="${index}"
-        placeholder="Emoji"
-      >
-    `;
-
-    levelInputs.appendChild(row);
-  });
-}
-
-
-/* =========================================================
-   ADMIN - GUARDAR
-   ========================================================= */
-
-async function saveAdminSettings(event) {
-
-  event.preventDefault();
-
-  if (!adminUnlocked) {
-    alert("🔒 Primeiro entre na Administração.");
-    return;
-  }
-
-
-  const classInput = $("#classInput");
-
-  if (classInput) {
-    const newClassName = classInput.value.trim();
-
-    if (newClassName) {
-      data.className = newClassName;
-    }
-  }
-
-
-  // Só altera o PIN se o administrador escrever um novo
-  const newPinInput = $("#newPinInput");
-
-  if (newPinInput) {
-
-    const newPin = newPinInput.value.trim();
-
-    if (newPin) {
-      data.pin = newPin;
-    }
-  }
-
-
-  // Atualizar níveis
-  const levelInputs = $("#levelInputs");
-
-  if (levelInputs) {
-
-    data.levels = data.levels.map((level, index) => {
-
-      const pointsInput =
-        levelInputs.querySelector(
-          `[data-level-points="${index}"]`
-        );
-
-      const labelInput =
-        levelInputs.querySelector(
-          `[data-level-label="${index}"]`
-        );
-
-      const emojiInput =
-        levelInputs.querySelector(
-          `[data-level-emoji="${index}"]`
-        );
-
-      return {
-        points: Math.max(
+      score:
+        Math.max(
           0,
-          Number(pointsInput?.value || level.points || 0)
+          Number(parsed.score || 0)
         ),
 
-        label:
-          labelInput?.value.trim() ||
-          level.label,
-
-        emoji:
-          emojiInput?.value.trim() ||
-          level.emoji
-      };
-    });
-  }
-
-
-  // Ordenar níveis por pontuação
-  data.levels.sort((a, b) => {
-    return Number(a.points) - Number(b.points);
-  });
-
-
-  saveLocalData();
-
-  await saveToSupabase();
-
-  alert("✅ Configurações guardadas.");
-
-  render();
-}
-
-
-/* =========================================================
-   VISIBILIDADE DOS BOTÕES DE PONTOS
-   ========================================================= */
-
-function updateAdminVisibility() {
-
-  const positiveActions = $("#positiveActions");
-  const negativeActions = $("#negativeActions");
-
-  if (!positiveActions || !negativeActions) return;
-
-
-  if (!adminUnlocked) {
-
-    positiveActions.innerHTML = `
-      <div class="admin-lock-message">
-        🔒 Área do administrador
-        <small>Entre na Administração para ganhar pontos.</small>
-      </div>
-    `;
-
-    negativeActions.innerHTML = `
-      <div class="admin-lock-message">
-        🔒 Área do administrador
-        <small>Entre na Administração para retirar pontos.</small>
-      </div>
-    `;
-
-    return;
-  }
-
-
-  renderActions();
-}
-
-
-/* =========================================================
-   RENDER
-   ========================================================= */
-
-function render() {
-
-  data.score = Math.max(0, Number(data.score || 0));
-
-  saveLocalData();
-
-
-  // Nome da turma
-  const classTitle = $("#classTitle");
-
-  if (classTitle) {
-    classTitle.textContent = data.className || "Turma";
-  }
-
-
-  // Pontuação
-  const score = $("#score");
-
-  if (score) {
-    score.textContent = data.score;
-  }
-
-
-  renderProgress();
-
-  renderLevels();
-
-  renderActions();
-
-  renderHistory();
-
-  renderChart();
-
-  updateAdminVisibility();
-}
-
-
-/* =========================================================
-   PROGRESSO
-   ========================================================= */
-
-function renderProgress() {
-
-  const progressBar = $("#progressBar");
-  const nextText = $("#nextText");
-  const celebration = $("#celebration");
-
-  const levels = [...data.levels]
-    .sort((a, b) => Number(a.points) - Number(b.points));
-
-
-  if (!levels.length) {
-
-    if (progressBar) {
-      progressBar.style.width = "0%";
-    }
-
-    if (nextText) {
-      nextText.textContent = "Ainda não existem prémios definidos.";
-    }
-
-    if (celebration) {
-      celebration.textContent = "";
-    }
-
-    return;
-  }
-
-
-  const currentScore = Math.max(0, data.score);
-
-  const nextLevel = levels.find(
-    level => Number(level.points) > currentScore
-  );
-
-
-  if (!nextLevel) {
-
-    if (progressBar) {
-      progressBar.style.width = "100%";
-    }
-
-    if (nextText) {
-      nextText.textContent =
-        "🎉 A turma atingiu todos os prémios!";
-    }
-
-    if (celebration) {
-      celebration.textContent = "🏆 Parabéns, turma!";
-    }
-
-    return;
-  }
-
-
-  const previousLevel =
-    [...levels]
-      .reverse()
-      .find(
-        level => Number(level.points) <= currentScore
-      );
-
-
-  const startPoints =
-    previousLevel
-      ? Number(previousLevel.points)
-      : 0;
-
-  const targetPoints =
-    Number(nextLevel.points);
-
-
-  const totalDistance =
-    targetPoints - startPoints;
-
-  const currentDistance =
-    currentScore - startPoints;
-
-
-  let percentage =
-    totalDistance > 0
-      ? (currentDistance / totalDistance) * 100
-      : 0;
-
-
-  percentage = Math.max(
-    0,
-    Math.min(100, percentage)
-  );
-
-
-  if (progressBar) {
-    progressBar.style.width = `${percentage}%`;
-  }
-
-
-  if (nextText) {
-
-    const remaining =
-      Math.max(
-        0,
-        targetPoints - currentScore
-      );
-
-    nextText.textContent =
-      `Faltam ${remaining} pontos para ${nextLevel.emoji} ${nextLevel.label}`;
-  }
-
-
-  if (celebration) {
-
-    const reached =
-      levels.filter(
-        level =>
-          Number(level.points) <= currentScore
-      );
-
-    if (reached.length) {
-      celebration.textContent =
-        `🎉 Último prémio alcançado: ${reached[reached.length - 1].emoji} ${reached[reached.length - 1].label}`;
-    } else {
-      celebration.textContent = "";
-    }
-  }
-}
-
-
-/* =========================================================
-   NÍVEIS / PRÉMIOS
-   ========================================================= */
-
-function renderLevels() {
-
-  const container = $("#levels");
-
-  if (!container) return;
-
-  container.innerHTML = "";
-
-
-  const levels = [...data.levels]
-    .sort((a, b) => Number(a.points) - Number(b.points));
-
-
-  levels.forEach(level => {
-
-    const reached =
-      data.score >= Number(level.points);
-
-
-    const card = document.createElement("div");
-
-    card.className =
-      `level-card ${reached ? "reached" : ""}`;
-
-
-    card.innerHTML = `
-      <div class="level-emoji">
-        ${escapeHtml(level.emoji || "🎁")}
-      </div>
-
-      <div class="level-points">
-        ${Number(level.points)} pts
-      </div>
-
-      <div class="level-label">
-        ${escapeHtml(level.label || "Prémio")}
-      </div>
-
-      <div class="level-status">
-        ${reached ? "✅ Conquistado" : "🔒 Por conquistar"}
-      </div>
-    `;
-
-
-    container.appendChild(card);
-  });
-}
-
-
-/* =========================================================
-   AÇÕES
-   ========================================================= */
-
-function renderActions() {
-
-  const positiveActions = $("#positiveActions");
-  const negativeActions = $("#negativeActions");
-
-
-  if (!positiveActions || !negativeActions) {
-    return;
-  }
-
-
-  // Se não estiver autenticado, mostramos o aviso
-  if (!adminUnlocked) {
-    return;
-  }
-
-
-  positiveActions.innerHTML = "";
-  negativeActions.innerHTML = "";
-
-
-  data.actions.forEach((action, index) => {
-
-    const button = document.createElement("button");
-
-    button.type = "button";
-
-    button.className =
-      action.points >= 0
-        ? "action-btn positive"
-        : "action-btn negative";
-
-
-    button.innerHTML = `
-      <span class="action-emoji">
-        ${escapeHtml(action.emoji || "")}
-      </span>
-
-      <span class="action-name">
-        ${escapeHtml(action.name || "Ação")}
-      </span>
-
-      <strong>
-        ${action.points > 0 ? "+" : ""}
-        ${Number(action.points)}
-      </strong>
-    `;
-
-
-    button.addEventListener("click", () => {
-      change(index);
-    });
-
-
-    if (action.points >= 0) {
-      positiveActions.appendChild(button);
-    } else {
-      negativeActions.appendChild(button);
-    }
-  });
-}
-
-
-/* =========================================================
-   ALTERAR PONTOS
-   ========================================================= */
-
-async function change(index) {
-
-  if (!adminUnlocked) {
-
-    alert(
-      "🔒 Apenas o administrador pode alterar os pontos."
+      levels:
+        Array.isArray(parsed.levels)
+          ? parsed.levels
+          : clone(DEFAULT_DATA.levels),
+
+      actions:
+        Array.isArray(parsed.actions)
+          ? parsed.actions
+          : clone(DEFAULT_DATA.actions)
+
+    };
+
+  } catch (error) {
+
+    console.error(
+      "Erro ao carregar dados locais:",
+      error
     );
 
-    return;
+    return clone(DEFAULT_DATA);
   }
-
-
-  const action = data.actions[index];
-
-  if (!action) return;
-
-
-  const before =
-    Math.max(0, Number(data.score || 0));
-
-
-  const requestedChange =
-    Number(action.points || 0);
-
-
-  const newScore =
-    Math.max(
-      0,
-      before + requestedChange
-    );
-
-
-  const actualChange =
-    newScore - before;
-
-
-  // Se tentar retirar pontos quando já está a 0
-  if (actualChange === 0) {
-
-    alert(
-      "A turma já está com 0 pontos."
-    );
-
-    return;
-  }
-
-
-  data.score = newScore;
-
-
-  // Guardar no histórico
-  const historyItem = {
-
-    name: action.name,
-
-    emoji: action.emoji,
-
-    delta: actualChange,
-
-    before_score: before,
-
-    after_score: newScore,
-
-    created_at:
-      new Date().toISOString()
-  };
-
-
-  history.unshift(historyItem);
-
-
-  saveLocalData();
-
-  render();
-
-
-  await saveHistoryToSupabase(historyItem);
-
-  await saveToSupabase();
 }
 
 
-/* =========================================================
-   HISTÓRICO
-   ========================================================= */
+function saveLocalData() {
 
-function renderHistory() {
-
-  const container = $("#history");
-
-  if (!container) return;
-
-
-  if (!history.length) {
-
-    container.innerHTML = `
-      <div class="empty-history">
-        Ainda não existem movimentos.
-      </div>
-    `;
-
-    return;
-  }
-
-
-  container.innerHTML = "";
-
-
-  history.slice(0, 50).forEach(item => {
-
-    const row = document.createElement("div");
-
-    row.className = "history-row";
-
-
-    const delta =
-      Number(item.delta || 0);
-
-
-    const sign =
-      delta > 0 ? "+" : "";
-
-
-    const date =
-      item.created_at
-        ? new Date(item.created_at)
-            .toLocaleString("pt-PT")
-        : "";
-
-
-    row.innerHTML = `
-      <div class="history-icon">
-        ${escapeHtml(item.emoji || "•")}
-      </div>
-
-      <div class="history-info">
-        <strong>
-          ${escapeHtml(item.name || "Movimento")}
-        </strong>
-
-        <small>
-          ${date}
-        </small>
-      </div>
-
-      <div class="history-points ${delta >= 0 ? "positive" : "negative"}">
-        ${sign}${delta}
-      </div>
-    `;
-
-
-    container.appendChild(row);
-  });
-}
-
-
-/* =========================================================
-   DESFAZER ÚLTIMA ALTERAÇÃO
-   ========================================================= */
-
-async function undo() {
-
-  if (!adminUnlocked) {
-
-    alert(
-      "🔒 Apenas o administrador pode desfazer alterações."
-    );
-
-    return;
-  }
-
-
-  if (!history.length) {
-
-    alert(
-      "Não existe nenhuma alteração para desfazer."
-    );
-
-    return;
-  }
-
-
-  const last = history.shift();
-
+  if (!data) return;
 
   data.score =
     Math.max(
       0,
-      Number(last.before_score || 0)
+      Number(data.score || 0)
     );
 
 
-  saveLocalData();
-
-  render();
-
-  await saveToSupabase();
-
-
-  alert("↩️ Última alteração desfeita.");
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(data)
+  );
 }
 
 
-/* =========================================================
-   LIMPAR HISTÓRICO
-   ========================================================= */
+function clone(value) {
 
-async function clearHistoryData() {
-
-  if (!adminUnlocked) {
-
-    alert(
-      "🔒 Apenas o administrador pode limpar o histórico."
-    );
-
-    return;
-  }
-
-
-  const confirmed =
-    confirm(
-      "Tem a certeza de que quer limpar o histórico?"
-    );
-
-
-  if (!confirmed) return;
-
-
-  history = [];
-
-  render();
-
-
-  if (
-    supabaseClient &&
-    classroomId
-  ) {
-
-    try {
-
-      await supabaseClient
-        .from("score_history")
-        .delete()
-        .eq(
-          "classroom_id",
-          classroomId
-        );
-
-    } catch (error) {
-
-      console.error(
-        "Erro ao limpar histórico:",
-        error
-      );
-    }
-  }
-}
-
-
-/* =========================================================
-   RESET
-   ========================================================= */
-
-async function resetClass() {
-
-  if (!adminUnlocked) {
-
-    alert(
-      "🔒 Apenas o administrador pode fazer o reset."
-    );
-
-    return;
-  }
-
-
-  const confirmed =
-    confirm(
-      "Tem a certeza de que quer colocar a pontuação a 0?"
-    );
-
-
-  if (!confirmed) return;
-
-
-  data.score = 0;
-
-  history = [];
-
-
-  saveLocalData();
-
-  render();
-
-  await saveToSupabase();
-
-
-  if (
-    supabaseClient &&
-    classroomId
-  ) {
-
-    try {
-
-      await supabaseClient
-        .from("score_history")
-        .delete()
-        .eq(
-          "classroom_id",
-          classroomId
-        );
-
-    } catch (error) {
-
-      console.error(
-        "Erro ao apagar histórico:",
-        error
-      );
-    }
-  }
-
-
-  alert(
-    "🔄 A pontuação foi reiniciada para 0."
+  return JSON.parse(
+    JSON.stringify(value)
   );
 }
 
 
 /* =========================================================
-   GRÁFICO
-   ========================================================= */
+   EVENTOS
+========================================================= */
 
-function renderChart() {
+function setupEvents() {
 
-  const line = $("#chartLine");
-  const dots = $("#chartDots");
-  const currentScore = $("#chartCurrentScore");
-  const empty = $("#chartEmpty");
+  const adminBtn = $("#adminBtn");
 
+  if (adminBtn) {
 
-  if (!line || !dots) return;
-
-
-  if (!history.length) {
-
-    line.setAttribute(
-      "points",
-      ""
+    adminBtn.addEventListener(
+      "click",
+      openAdmin
     );
 
-    dots.innerHTML = "";
-
-
-    if (currentScore) {
-      currentScore.textContent =
-        data.score;
-    }
-
-
-    if (empty) {
-      empty.classList.remove("hidden");
-    }
-
-    return;
   }
 
 
-  if (empty) {
-    empty.classList.add("hidden");
+  const closeAdmin = $("#closeAdmin");
+
+  if (closeAdmin) {
+
+    closeAdmin.addEventListener(
+      "click",
+      closeAdminModal
+    );
+
   }
 
 
-  /*
-    Criamos a evolução:
-    ponto inicial + alterações do histórico.
-  */
+  const unlockBtn = $("#unlockBtn");
 
-  const orderedHistory =
-    [...history]
-      .reverse();
+  if (unlockBtn) {
 
-
-  const values = [0];
-
-
-  orderedHistory.forEach(item => {
-
-    values.push(
-      Math.max(
-        0,
-        Number(item.after_score || 0)
-      )
-    );
-  });
-
-
-  values.push(
-    Math.max(0, data.score)
-  );
-
-
-  const width = 700;
-  const height = 260;
-  const padding = 30;
-
-
-  const maxValue =
-    Math.max(
-      10,
-      ...values
+    unlockBtn.addEventListener(
+      "click",
+      unlockAdmin
     );
 
-
-  const minValue = 0;
-
-
-  const usableWidth =
-    width - padding * 2;
-
-  const usableHeight =
-    height - padding * 2;
-
-
-  const points =
-    values.map((value, index) => {
-
-      const x =
-        padding +
-        (
-          index /
-          Math.max(1, values.length - 1)
-        ) *
-        usableWidth;
-
-
-      const ratio =
-        (value - minValue) /
-        Math.max(1, maxValue - minValue);
-
-
-      const y =
-        height -
-        padding -
-        ratio * usableHeight;
-
-
-      return {
-        x,
-        y,
-        value
-      };
-    });
-
-
-  line.setAttribute(
-    "points",
-    points
-      .map(p => `${p.x},${p.y}`)
-      .join(" ")
-  );
-
-
-  dots.innerHTML = "";
-
-
-  points.forEach(point => {
-
-    const circle =
-      document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "circle"
-      );
-
-
-    circle.setAttribute(
-      "cx",
-      point.x
-    );
-
-    circle.setAttribute(
-      "cy",
-      point.y
-    );
-
-    circle.setAttribute(
-      "r",
-      "6"
-    );
-
-
-    const title =
-      document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "title"
-      );
-
-
-    title.textContent =
-      `${point.value} pontos`;
-
-
-    circle.appendChild(title);
-
-    dots.appendChild(circle);
-  });
-
-
-  if (currentScore) {
-    currentScore.textContent =
-      data.score;
   }
+
+
+  const pinInput = $("#pinInput");
+
+  if (pinInput) {
+
+    pinInput.addEventListener(
+      "keydown",
+      event => {
+
+        if (event.key === "Enter") {
+
+          unlockAdmin();
+
+        }
+
+      }
+    );
+
+  }
+
+
+  const adminForm = $("#adminForm");
+
+  if (adminForm) {
+
+    adminForm.addEventListener(
+      "submit",
+      saveAdminSettings
+    );
+
+  }
+
+
+  const resetBtn = $("#resetBtn");
+
+  if (resetBtn) {
+
+    resetBtn.addEventListener(
+      "click",
+      resetClass
+    );
+
+  }
+
+
+  const clearHistory = $("#clearHistory");
+
+  if (clearHistory) {
+
+    clearHistory.addEventListener(
+      "click",
+      clearHistoryData
+    );
+
+  }
+
+
+  const adminLogout = $("#adminLogout");
+
+  if (adminLogout) {
+
+    adminLogout.addEventListener(
+      "click",
+      closeAdminModal
+    );
+
+  }
+
 }
 
 
 /* =========================================================
-   SUPABASE - CARREGAR
-   ========================================================= */
+   CARREGAR TURMA DO SUPABASE
+========================================================= */
 
-async function loadFromSupabase() {
+async function loadClassroom() {
 
   if (!supabaseClient) {
+
+    console.warn(
+      "Supabase indisponível. A usar dados locais."
+    );
+
     return;
+
   }
 
 
@@ -1367,12 +407,13 @@ async function loadFromSupabase() {
 
     if (result.error) {
 
-      console.warn(
-        "Não foi possível carregar do Supabase:",
+      console.error(
+        "Erro ao carregar classrooms:",
         result.error
       );
 
       return;
+
     }
 
 
@@ -1380,13 +421,21 @@ async function loadFromSupabase() {
       result.data || [];
 
 
+    /*
+      Se ainda não existir nenhuma turma,
+      criamos uma automaticamente.
+    */
+
     if (!rows.length) {
 
       console.log(
-        "Ainda não existe uma turma no Supabase."
+        "Não existe nenhuma turma. A criar uma..."
       );
 
+      await createClassroom();
+
       return;
+
     }
 
 
@@ -1395,7 +444,7 @@ async function loadFromSupabase() {
 
 
     classroomId =
-      remote.id || null;
+      remote.id;
 
 
     data.className =
@@ -1403,18 +452,14 @@ async function loadFromSupabase() {
       data.className;
 
 
-    /*
-      O PIN só é atualizado se vier efetivamente
-      da base de dados.
-    */
-
     if (
-      remote.pin !== undefined &&
-      remote.pin !== null
+      remote.pin !== null &&
+      remote.pin !== undefined
     ) {
 
       data.pin =
         String(remote.pin);
+
     }
 
 
@@ -1425,138 +470,137 @@ async function loadFromSupabase() {
       );
 
 
-    if (
-      Array.isArray(remote.levels)
-    ) {
+    if (Array.isArray(remote.levels)) {
 
       data.levels =
         remote.levels;
+
     }
 
 
-    if (
-      Array.isArray(remote.actions)
-    ) {
+    if (Array.isArray(remote.actions)) {
 
       data.actions =
         remote.actions;
+
     }
 
 
     saveLocalData();
 
 
-    await loadHistoryFromSupabase();
+    await loadHistory();
+
+
+    console.log(
+      "Turma carregada:",
+      data.className
+    );
+
 
   } catch (error) {
 
     console.error(
-      "Erro ao sincronizar com Supabase:",
+      "Erro ao carregar turma:",
       error
     );
+
   }
+
 }
 
 
 /* =========================================================
-   SUPABASE - GUARDAR
-   ========================================================= */
+   CRIAR TURMA
+========================================================= */
 
-async function saveToSupabase() {
+async function createClassroom() {
 
-  if (!supabaseClient) {
-    return;
-  }
+  if (!supabaseClient) return;
 
 
   try {
 
-    const payload = {
+    const result =
+      await supabaseClient
+        .from("classrooms")
+        .insert({
 
-      name:
-        data.className,
+          name:
+            data.className,
 
-      pin:
-        data.pin,
+          pin:
+            data.pin,
 
-      score:
-        Math.max(
-          0,
-          Number(data.score || 0)
-        ),
+          score:
+            0,
 
-      levels:
-        data.levels,
+          levels:
+            data.levels,
 
-      actions:
-        data.actions,
+          actions:
+            data.actions,
 
-      updated_at:
-        new Date().toISOString()
-    };
+          updated_at:
+            new Date().toISOString()
 
-
-    let result;
-
-
-    if (classroomId) {
-
-      result =
-        await supabaseClient
-          .from("classrooms")
-          .update(payload)
-          .eq("id", classroomId);
-
-    } else {
-
-      result =
-        await supabaseClient
-          .from("classrooms")
-          .insert(payload)
-          .select()
-          .single();
-
-
-      if (
-        result.data &&
-        result.data.id
-      ) {
-
-        classroomId =
-          result.data.id;
-      }
-    }
+        })
+        .select()
+        .single();
 
 
     if (result.error) {
 
       console.error(
-        "Erro ao guardar no Supabase:",
+        "Erro ao criar turma:",
         result.error
       );
+
+      return;
+
+    }
+
+
+    if (result.data) {
+
+      classroomId =
+        result.data.id;
+
+      console.log(
+        "Turma criada:",
+        classroomId
+      );
+
     }
 
   } catch (error) {
 
     console.error(
-      "Erro ao guardar dados:",
+      "Erro ao criar turma:",
       error
     );
+
   }
+
 }
 
 
 /* =========================================================
-   SUPABASE - HISTÓRICO
-   ========================================================= */
+   GUARDAR TURMA
+========================================================= */
 
-async function saveHistoryToSupabase(item) {
+async function saveClassroom() {
+
+  saveLocalData();
+
 
   if (
     !supabaseClient ||
     !classroomId
   ) {
+
     return;
+
   }
 
 
@@ -1564,61 +608,71 @@ async function saveHistoryToSupabase(item) {
 
     const result =
       await supabaseClient
-        .from("score_history")
-        .insert({
-
-          classroom_id:
-            classroomId,
+        .from("classrooms")
+        .update({
 
           name:
-            item.name,
+            data.className,
 
-          emoji:
-            item.emoji,
+          pin:
+            data.pin,
 
-          delta:
-            item.delta,
+          score:
+            Math.max(
+              0,
+              Number(data.score || 0)
+            ),
 
-          before_score:
-            item.before_score,
+          levels:
+            data.levels,
 
-          after_score:
-            item.after_score,
+          actions:
+            data.actions,
 
-          created_at:
-            item.created_at
-        });
+          updated_at:
+            new Date().toISOString()
+
+        })
+        .eq(
+          "id",
+          classroomId
+        );
 
 
     if (result.error) {
 
       console.error(
-        "Erro ao guardar histórico:",
+        "Erro ao guardar turma:",
         result.error
       );
+
     }
 
   } catch (error) {
 
     console.error(
-      "Erro no histórico:",
+      "Erro ao guardar turma:",
       error
     );
+
   }
+
 }
 
 
 /* =========================================================
-   SUPABASE - CARREGAR HISTÓRICO
-   ========================================================= */
+   HISTÓRICO
+========================================================= */
 
-async function loadHistoryFromSupabase() {
+async function loadHistory() {
 
   if (
     !supabaseClient ||
     !classroomId
   ) {
+
     return;
+
   }
 
 
@@ -1649,6 +703,7 @@ async function loadHistoryFromSupabase() {
       );
 
       return;
+
     }
 
 
@@ -1659,23 +714,1671 @@ async function loadHistoryFromSupabase() {
   } catch (error) {
 
     console.error(
-      "Erro ao carregar histórico:",
+      "Erro no histórico:",
       error
     );
+
   }
+
+}
+
+
+async function saveHistory(item) {
+
+  if (
+    !supabaseClient ||
+    !classroomId
+  ) {
+
+    return;
+
+  }
+
+
+  try {
+
+    const result =
+      await supabaseClient
+        .from("score_history")
+        .insert({
+
+          classroom_id:
+            classroomId,
+
+          name:
+            item.name,
+
+          emoji:
+            item.emoji,
+
+          delta:
+            item.delta,
+
+          before_score:
+            item.before_score,
+
+          after_score:
+            item.after_score,
+
+          created_at:
+            item.created_at
+
+        });
+
+
+    if (result.error) {
+
+      console.error(
+        "Erro ao guardar histórico:",
+        result.error
+      );
+
+    }
+
+  } catch (error) {
+
+    console.error(
+      "Erro ao guardar histórico:",
+      error
+    );
+
+  }
+
 }
 
 
 /* =========================================================
-   UTILITÁRIO DE SEGURANÇA
-   ========================================================= */
+   RENDER PRINCIPAL
+========================================================= */
+
+function render() {
+
+  if (!data) return;
+
+
+  data.score =
+    Math.max(
+      0,
+      Number(data.score || 0)
+    );
+
+
+  const classTitle =
+    $("#classTitle");
+
+
+  if (classTitle) {
+
+    classTitle.textContent =
+      data.className ||
+      "Turma";
+
+  }
+
+
+  const score =
+    $("#score");
+
+
+  if (score) {
+
+    score.textContent =
+      data.score;
+
+  }
+
+
+  renderProgress();
+
+  renderLevels();
+
+  renderActions();
+
+  renderHistory();
+
+  renderChart();
+
+}
+
+
+/* =========================================================
+   PROGRESSO
+========================================================= */
+
+function renderProgress() {
+
+  const progressBar =
+    $("#progressBar");
+
+  const nextText =
+    $("#nextText");
+
+  const celebration =
+    $("#celebration");
+
+
+  if (!data.levels.length) {
+
+    if (progressBar) {
+      progressBar.style.width = "0%";
+    }
+
+    if (nextText) {
+      nextText.textContent =
+        "Ainda não existem prémios.";
+    }
+
+    return;
+
+  }
+
+
+  const levels =
+    [...data.levels]
+      .sort(
+        (a, b) =>
+          Number(a.points) -
+          Number(b.points)
+      );
+
+
+  const score =
+    Math.max(
+      0,
+      Number(data.score)
+    );
+
+
+  const next =
+    levels.find(
+      level =>
+        Number(level.points) >
+        score
+    );
+
+
+  /*
+    Todos os prémios alcançados.
+  */
+
+  if (!next) {
+
+    if (progressBar) {
+
+      progressBar.style.width =
+        "100%";
+
+    }
+
+
+    if (nextText) {
+
+      nextText.textContent =
+        "🎉 Todos os prémios foram alcançados!";
+
+    }
+
+
+    if (celebration) {
+
+      celebration.textContent =
+        "🏆 Parabéns, turma!";
+
+    }
+
+
+    return;
+
+  }
+
+
+  const previous =
+    [...levels]
+      .reverse()
+      .find(
+        level =>
+          Number(level.points) <=
+          score
+      );
+
+
+  const start =
+    previous
+      ? Number(previous.points)
+      : 0;
+
+
+  const target =
+    Number(next.points);
+
+
+  const total =
+    target - start;
+
+
+  const current =
+    score - start;
+
+
+  let percentage =
+    total > 0
+      ? (current / total) * 100
+      : 0;
+
+
+  percentage =
+    Math.max(
+      0,
+      Math.min(
+        100,
+        percentage
+      )
+    );
+
+
+  if (progressBar) {
+
+    progressBar.style.width =
+      `${percentage}%`;
+
+  }
+
+
+  if (nextText) {
+
+    const remaining =
+      Math.max(
+        0,
+        target - score
+      );
+
+
+    nextText.textContent =
+      `Faltam ${remaining} pontos para ${next.emoji} ${next.label}`;
+
+  }
+
+
+  if (celebration) {
+
+    const reached =
+      levels.filter(
+        level =>
+          Number(level.points) <=
+          score
+      );
+
+
+    if (reached.length) {
+
+      const last =
+        reached[reached.length - 1];
+
+
+      celebration.textContent =
+        `🎉 Último prémio alcançado: ${last.emoji} ${last.label}`;
+
+    } else {
+
+      celebration.textContent =
+        "";
+
+    }
+
+  }
+
+}
+
+
+/* =========================================================
+   PRÉMIOS
+========================================================= */
+
+function renderLevels() {
+
+  const container =
+    $("#levels");
+
+
+  if (!container) return;
+
+
+  container.innerHTML =
+    "";
+
+
+  const levels =
+    [...data.levels]
+      .sort(
+        (a, b) =>
+          Number(a.points) -
+          Number(b.points)
+      );
+
+
+  levels.forEach(level => {
+
+    const card =
+      document.createElement("div");
+
+
+    card.className =
+      "level-card";
+
+
+    if (
+      data.score >=
+      Number(level.points)
+    ) {
+
+      card.classList.add(
+        "reached"
+      );
+
+    }
+
+
+    card.innerHTML = `
+
+      <div class="level-emoji">
+        ${escapeHtml(level.emoji || "🎁")}
+      </div>
+
+      <div class="level-points">
+        ${Number(level.points)} pts
+      </div>
+
+      <div class="level-label">
+        ${escapeHtml(level.label || "Prémio")}
+      </div>
+
+      <div class="level-status">
+        ${
+          data.score >= Number(level.points)
+            ? "✅ Conquistado"
+            : "🔒 Por conquistar"
+        }
+      </div>
+
+    `;
+
+
+    container.appendChild(card);
+
+  });
+
+}
+
+
+/* =========================================================
+   AÇÕES
+========================================================= */
+
+function renderActions() {
+
+  const positive =
+    $("#positiveActions");
+
+  const negative =
+    $("#negativeActions");
+
+
+  if (!positive || !negative) {
+
+    return;
+
+  }
+
+
+  /*
+    IMPORTANTE:
+    Os botões não aparecem enquanto
+    o administrador não estiver autenticado.
+  */
+
+  if (!adminUnlocked) {
+
+    positive.innerHTML = `
+      <div class="admin-lock-message">
+        🔒 Área do administrador
+        <small>
+          Entre na Administração para ganhar pontos.
+        </small>
+      </div>
+    `;
+
+
+    negative.innerHTML = `
+      <div class="admin-lock-message">
+        🔒 Área do administrador
+        <small>
+          Entre na Administração para retirar pontos.
+        </small>
+      </div>
+    `;
+
+
+    return;
+
+  }
+
+
+  positive.innerHTML =
+    "";
+
+  negative.innerHTML =
+    "";
+
+
+  data.actions.forEach(
+    (action, index) => {
+
+      const button =
+        document.createElement("button");
+
+
+      button.type =
+        "button";
+
+
+      button.className =
+        action.points >= 0
+          ? "action-btn positive"
+          : "action-btn negative";
+
+
+      button.innerHTML = `
+
+        <span class="action-emoji">
+          ${escapeHtml(action.emoji || "")}
+        </span>
+
+        <span class="action-name">
+          ${escapeHtml(action.name || "Ação")}
+        </span>
+
+        <strong>
+          ${
+            Number(action.points) > 0
+              ? "+"
+              : ""
+          }${Number(action.points)}
+        </strong>
+
+      `;
+
+
+      button.addEventListener(
+        "click",
+        () => changePoints(index)
+      );
+
+
+      if (
+        Number(action.points) >= 0
+      ) {
+
+        positive.appendChild(
+          button
+        );
+
+      } else {
+
+        negative.appendChild(
+          button
+        );
+
+      }
+
+    }
+  );
+
+}
+
+
+/* =========================================================
+   ALTERAR PONTOS
+========================================================= */
+
+async function changePoints(index) {
+
+  if (!adminUnlocked) {
+
+    alert(
+      "🔒 Apenas o administrador pode alterar os pontos."
+    );
+
+    return;
+
+  }
+
+
+  const action =
+    data.actions[index];
+
+
+  if (!action) return;
+
+
+  const before =
+    Math.max(
+      0,
+      Number(data.score || 0)
+    );
+
+
+  const requested =
+    Number(action.points || 0);
+
+
+  const after =
+    Math.max(
+      0,
+      before + requested
+    );
+
+
+  const actualChange =
+    after - before;
+
+
+  if (actualChange === 0) {
+
+    alert(
+      "A turma já está com 0 pontos."
+    );
+
+    return;
+
+  }
+
+
+  data.score =
+    after;
+
+
+  const item = {
+
+    name:
+      action.name,
+
+    emoji:
+      action.emoji,
+
+    delta:
+      actualChange,
+
+    before_score:
+      before,
+
+    after_score:
+      after,
+
+    created_at:
+      new Date().toISOString()
+
+  };
+
+
+  /*
+    Primeiro atualizamos a interface.
+  */
+
+  history.unshift(item);
+
+  saveLocalData();
+
+  render();
+
+
+  /*
+    Depois guardamos no Supabase.
+  */
+
+  await saveHistory(item);
+
+  await saveClassroom();
+
+}
+
+
+/* =========================================================
+   DESFAZER
+========================================================= */
+
+async function undo() {
+
+  if (!adminUnlocked) {
+
+    alert(
+      "🔒 Apenas o administrador pode desfazer alterações."
+    );
+
+    return;
+
+  }
+
+
+  if (!history.length) {
+
+    alert(
+      "Não existem alterações para desfazer."
+    );
+
+    return;
+
+  }
+
+
+  const last =
+    history[0];
+
+
+  data.score =
+    Math.max(
+      0,
+      Number(
+        last.before_score || 0
+      )
+    );
+
+
+  history.shift();
+
+
+  saveLocalData();
+
+  render();
+
+  await saveClassroom();
+
+
+  alert(
+    "↩️ Última alteração desfeita."
+  );
+
+}
+
+
+/* =========================================================
+   LIMPAR HISTÓRICO
+========================================================= */
+
+async function clearHistoryData() {
+
+  if (!adminUnlocked) {
+
+    alert(
+      "🔒 Apenas o administrador pode limpar o histórico."
+    );
+
+    return;
+
+  }
+
+
+  if (
+    !confirm(
+      "Tem a certeza de que quer limpar o histórico?"
+    )
+  ) {
+
+    return;
+
+  }
+
+
+  history = [];
+
+
+  if (
+    supabaseClient &&
+    classroomId
+  ) {
+
+    const result =
+      await supabaseClient
+        .from("score_history")
+        .delete()
+        .eq(
+          "classroom_id",
+          classroomId
+        );
+
+
+    if (result.error) {
+
+      console.error(
+        "Erro ao limpar histórico:",
+        result.error
+      );
+
+    }
+
+  }
+
+
+  render();
+
+}
+
+
+/* =========================================================
+   RESET
+========================================================= */
+
+async function resetClass() {
+
+  if (!adminUnlocked) {
+
+    alert(
+      "🔒 Apenas o administrador pode reiniciar a pontuação."
+    );
+
+    return;
+
+  }
+
+
+  if (
+    !confirm(
+      "Tem a certeza de que quer colocar a pontuação a 0?"
+    )
+  ) {
+
+    return;
+
+  }
+
+
+  data.score =
+    0;
+
+
+  history =
+    [];
+
+
+  saveLocalData();
+
+  render();
+
+
+  await saveClassroom();
+
+
+  if (
+    supabaseClient &&
+    classroomId
+  ) {
+
+    const result =
+      await supabaseClient
+        .from("score_history")
+        .delete()
+        .eq(
+          "classroom_id",
+          classroomId
+        );
+
+
+    if (result.error) {
+
+      console.error(
+        "Erro ao apagar histórico:",
+        result.error
+      );
+
+    }
+
+  }
+
+
+  alert(
+    "🔄 A pontuação foi reiniciada para 0."
+  );
+
+}
+
+
+/* =========================================================
+   ADMINISTRAÇÃO
+========================================================= */
+
+function openAdmin() {
+
+  const modal =
+    $("#adminModal");
+
+
+  if (!modal) {
+
+    console.error(
+      "Elemento #adminModal não encontrado."
+    );
+
+    return;
+
+  }
+
+
+  adminUnlocked =
+    false;
+
+
+  modal.classList.remove(
+    "hidden"
+  );
+
+
+  showPinArea();
+
+}
+
+
+function closeAdminModal() {
+
+  adminUnlocked =
+    false;
+
+
+  const modal =
+    $("#adminModal");
+
+
+  if (modal) {
+
+    modal.classList.add(
+      "hidden"
+    );
+
+  }
+
+
+  render();
+
+}
+
+
+/* =========================================================
+   PIN
+========================================================= */
+
+function showPinArea() {
+
+  const pinArea =
+    $("#pinArea");
+
+  const adminForm =
+    $("#adminForm");
+
+
+  if (pinArea) {
+
+    pinArea.classList.remove(
+      "hidden"
+    );
+
+  }
+
+
+  if (adminForm) {
+
+    adminForm.classList.add(
+      "hidden"
+    );
+
+  }
+
+
+  const pinInput =
+    $("#pinInput");
+
+
+  if (pinInput) {
+
+    pinInput.value =
+      "";
+
+    pinInput.focus();
+
+  }
+
+}
+
+
+function unlockAdmin() {
+
+  const pinInput =
+    $("#pinInput");
+
+
+  if (!pinInput) {
+
+    alert(
+      "Não foi encontrado o campo do PIN."
+    );
+
+    return;
+
+  }
+
+
+  const enteredPin =
+    pinInput.value.trim();
+
+
+  if (!enteredPin) {
+
+    alert(
+      "Introduza o PIN."
+    );
+
+    return;
+
+  }
+
+
+  if (
+    enteredPin ===
+    String(data.pin)
+  ) {
+
+    adminUnlocked =
+      true;
+
+
+    const pinArea =
+      $("#pinArea");
+
+
+    const adminForm =
+      $("#adminForm");
+
+
+    if (pinArea) {
+
+      pinArea.classList.add(
+        "hidden"
+      );
+
+    }
+
+
+    if (adminForm) {
+
+      adminForm.classList.remove(
+        "hidden"
+      );
+
+    }
+
+
+    loadAdminSettings();
+
+    render();
+
+  } else {
+
+    alert(
+      "PIN incorreto."
+    );
+
+
+    pinInput.value =
+      "";
+
+
+    pinInput.focus();
+
+  }
+
+}
+
+
+/* =========================================================
+   CARREGAR ADMIN
+========================================================= */
+
+function loadAdminSettings() {
+
+  const classInput =
+    $("#classInput");
+
+
+  if (classInput) {
+
+    classInput.value =
+      data.className || "";
+
+  }
+
+
+  /*
+    O PIN NÃO é mostrado.
+  */
+
+  const newPinInput =
+    $("#newPinInput");
+
+
+  if (newPinInput) {
+
+    newPinInput.value =
+      "";
+
+    newPinInput.placeholder =
+      "Deixe vazio para manter o PIN atual";
+
+  }
+
+
+  const levelInputs =
+    $("#levelInputs");
+
+
+  if (!levelInputs) return;
+
+
+  levelInputs.innerHTML =
+    "";
+
+
+  data.levels.forEach(
+    (level, index) => {
+
+      const row =
+        document.createElement("div");
+
+
+      row.className =
+        "admin-level-row";
+
+
+      row.innerHTML = `
+
+        <input
+          type="number"
+          min="0"
+          value="${Number(level.points) || 0}"
+          data-level-points="${index}"
+          placeholder="Pontos"
+        >
+
+        <input
+          type="text"
+          value="${escapeHtml(level.label || "")}"
+          data-level-label="${index}"
+          placeholder="Nome do prémio"
+        >
+
+        <input
+          type="text"
+          value="${escapeHtml(level.emoji || "")}"
+          data-level-emoji="${index}"
+          placeholder="Emoji"
+        >
+
+      `;
+
+
+      levelInputs.appendChild(
+        row
+      );
+
+    }
+  );
+
+}
+
+
+/* =========================================================
+   GUARDAR ADMIN
+========================================================= */
+
+async function saveAdminSettings(event) {
+
+  event.preventDefault();
+
+
+  if (!adminUnlocked) {
+
+    alert(
+      "🔒 Primeiro entre na Administração."
+    );
+
+    return;
+
+  }
+
+
+  const classInput =
+    $("#classInput");
+
+
+  if (classInput) {
+
+    const name =
+      classInput.value.trim();
+
+
+    if (name) {
+
+      data.className =
+        name;
+
+    }
+
+  }
+
+
+  /*
+    Só muda o PIN se escreveres
+    um novo PIN.
+  */
+
+  const newPinInput =
+    $("#newPinInput");
+
+
+  if (newPinInput) {
+
+    const newPin =
+      newPinInput.value.trim();
+
+
+    if (newPin) {
+
+      data.pin =
+        newPin;
+
+    }
+
+  }
+
+
+  /*
+    Atualizar prémios.
+  */
+
+  const levelInputs =
+    $("#levelInputs");
+
+
+  if (levelInputs) {
+
+    data.levels =
+      data.levels.map(
+        (level, index) => {
+
+          const points =
+            levelInputs.querySelector(
+              `[data-level-points="${index}"]`
+            );
+
+
+          const label =
+            levelInputs.querySelector(
+              `[data-level-label="${index}"]`
+            );
+
+
+          const emoji =
+            levelInputs.querySelector(
+              `[data-level-emoji="${index}"]`
+            );
+
+
+          return {
+
+            points:
+              Math.max(
+                0,
+                Number(
+                  points?.value ||
+                  level.points ||
+                  0
+                )
+              ),
+
+            label:
+              label?.value.trim() ||
+              level.label,
+
+            emoji:
+              emoji?.value.trim() ||
+              level.emoji
+
+          };
+
+        }
+      );
+
+  }
+
+
+  /*
+    Ordenar prémios por pontos.
+  */
+
+  data.levels.sort(
+    (a, b) =>
+      Number(a.points) -
+      Number(b.points)
+  );
+
+
+  saveLocalData();
+
+  await saveClassroom();
+
+
+  /*
+    Limpar o campo do novo PIN.
+  */
+
+  if (newPinInput) {
+
+    newPinInput.value =
+      "";
+
+  }
+
+
+  render();
+
+
+  alert(
+    "✅ Configurações guardadas."
+  );
+
+}
+
+
+/* =========================================================
+   GRÁFICO
+========================================================= */
+
+function renderChart() {
+
+  const line =
+    $("#chartLine");
+
+  const dots =
+    $("#chartDots");
+
+  const currentScore =
+    $("#chartCurrentScore");
+
+  const empty =
+    $("#chartEmpty");
+
+
+  if (!line || !dots) {
+
+    return;
+
+  }
+
+
+  if (!history.length) {
+
+    line.setAttribute(
+      "points",
+      ""
+    );
+
+
+    dots.innerHTML =
+      "";
+
+
+    if (currentScore) {
+
+      currentScore.textContent =
+        data.score;
+
+    }
+
+
+    if (empty) {
+
+      empty.classList.remove(
+        "hidden"
+      );
+
+    }
+
+
+    return;
+
+  }
+
+
+  if (empty) {
+
+    empty.classList.add(
+      "hidden"
+    );
+
+  }
+
+
+  /*
+    Histórico vem do mais recente
+    para o mais antigo.
+
+    Para o gráfico queremos o contrário.
+  */
+
+  const ordered =
+    [...history].reverse();
+
+
+  const values =
+    [0];
+
+
+  ordered.forEach(
+    item => {
+
+      values.push(
+        Math.max(
+          0,
+          Number(
+            item.after_score || 0
+          )
+        )
+      );
+
+    }
+  );
+
+
+  const width =
+    700;
+
+  const height =
+    260;
+
+  const padding =
+    30;
+
+
+  const max =
+    Math.max(
+      10,
+      ...values
+    );
+
+
+  const usableWidth =
+    width - padding * 2;
+
+  const usableHeight =
+    height - padding * 2;
+
+
+  const points =
+    values.map(
+      (value, index) => {
+
+        const x =
+          padding +
+          (
+            index /
+            Math.max(
+              1,
+              values.length - 1
+            )
+          ) *
+          usableWidth;
+
+
+        const ratio =
+          value /
+          max;
+
+
+        const y =
+          height -
+          padding -
+          ratio *
+          usableHeight;
+
+
+        return {
+          x,
+          y,
+          value
+        };
+
+      }
+    );
+
+
+  line.setAttribute(
+    "points",
+    points
+      .map(
+        p =>
+          `${p.x},${p.y}`
+      )
+      .join(" ")
+  );
+
+
+  dots.innerHTML =
+    "";
+
+
+  points.forEach(
+    point => {
+
+      const circle =
+        document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "circle"
+        );
+
+
+      circle.setAttribute(
+        "cx",
+        point.x
+      );
+
+
+      circle.setAttribute(
+        "cy",
+        point.y
+      );
+
+
+      circle.setAttribute(
+        "r",
+        "6"
+      );
+
+
+      const title =
+        document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "title"
+        );
+
+
+      title.textContent =
+        `${point.value} pontos`;
+
+
+      circle.appendChild(
+        title
+      );
+
+
+      dots.appendChild(
+        circle
+      );
+
+    }
+  );
+
+
+  if (currentScore) {
+
+    currentScore.textContent =
+      data.score;
+
+  }
+
+}
+
+
+/* =========================================================
+   HISTÓRICO VISUAL
+========================================================= */
+
+function renderHistory() {
+
+  const container =
+    $("#history");
+
+
+  if (!container) return;
+
+
+  if (!history.length) {
+
+    container.innerHTML = `
+      <div class="empty-history">
+        Ainda não existem movimentos.
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  container.innerHTML =
+    "";
+
+
+  history
+    .slice(0, 50)
+    .forEach(item => {
+
+      const row =
+        document.createElement("div");
+
+
+      row.className =
+        "history-row";
+
+
+      const delta =
+        Number(
+          item.delta || 0
+        );
+
+
+      const sign =
+        delta > 0
+          ? "+"
+          : "";
+
+
+      let dateText =
+        "";
+
+
+      if (item.created_at) {
+
+        try {
+
+          dateText =
+            new Date(
+              item.created_at
+            ).toLocaleString(
+              "pt-PT"
+            );
+
+        } catch {
+
+          dateText =
+            "";
+
+        }
+
+      }
+
+
+      row.innerHTML = `
+
+        <div class="history-icon">
+          ${escapeHtml(item.emoji || "•")}
+        </div>
+
+        <div class="history-info">
+
+          <strong>
+            ${escapeHtml(item.name || "Movimento")}
+          </strong>
+
+          <small>
+            ${dateText}
+          </small>
+
+        </div>
+
+        <div
+          class="history-points ${
+            delta >= 0
+              ? "positive"
+              : "negative"
+          }"
+        >
+          ${sign}${delta}
+        </div>
+
+      `;
+
+
+      container.appendChild(
+        row
+      );
+
+    });
+
+}
+
+
+/* =========================================================
+   SEGURANÇA HTML
+========================================================= */
 
 function escapeHtml(value) {
 
   return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+    .replaceAll(
+      "&",
+      "&amp;"
+    )
+    .replaceAll(
+      "<",
+      "&lt;"
+    )
+    .replaceAll(
+      ">",
+      "&gt;"
+    )
+    .replaceAll(
+      '"',
+      "&quot;"
+    )
+    .replaceAll(
+      "'",
+      "&#039;"
+    );
+
 }
