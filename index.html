@@ -3,16 +3,8 @@
 
 <head>
   <meta charset="UTF-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  >
-
-  <meta
-    name="theme-color"
-    content="#f8fafc"
-  >
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f8fafc">
 
   <title>Desafio da Turma</title>
 
@@ -22,21 +14,16 @@
       box-sizing: border-box;
     }
 
-    html {
+    html,
+    body {
+      margin: 0;
       width: 100%;
       min-height: 100%;
     }
 
     body {
-      margin: 0;
-      width: 100%;
-      min-height: 100vh;
       font-family: Arial, Helvetica, sans-serif;
-      background: linear-gradient(
-        180deg,
-        #f8fafc 0%,
-        #eef2ff 100%
-      );
+      background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
       color: #334155;
       overflow-x: hidden;
     }
@@ -52,7 +39,7 @@
     }
 
     .container {
-      width: min(1080px, calc(100% - 32px));
+      width: min(1100px, calc(100% - 32px));
       margin: 0 auto;
     }
 
@@ -122,27 +109,22 @@
 
 
     /* =========================
-       GRELHA
+       GRELHA PRINCIPAL
     ========================= */
 
-    .grid {
+    .mainGrid {
       display: grid;
-      grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
       gap: 18px;
       padding-bottom: 35px;
     }
 
     .card {
       min-width: 0;
-      background: rgba(255, 255, 255, 0.94);
+      background: rgba(255, 255, 255, 0.96);
       border-radius: 22px;
       padding: 22px;
       box-shadow: 0 12px 35px rgba(15, 23, 42, 0.07);
       border: 1px solid rgba(226, 232, 240, 0.8);
-    }
-
-    .full {
-      grid-column: 1 / -1;
     }
 
     .cardTitle {
@@ -154,26 +136,26 @@
 
 
     /* =========================
-       PONTUAÇÃO
+       PONTUAÇÃO - TOPO
     ========================= */
 
     .scoreCard {
       text-align: center;
-      padding: 28px 24px 25px;
+      padding: 34px 28px 30px;
     }
 
     .scoreLabel {
       font-size: 14px;
       color: #94a3b8;
-      font-weight: 600;
+      font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.08em;
     }
 
     #score {
-      font-size: 76px;
+      font-size: 82px;
       line-height: 1;
-      margin: 14px 0 8px;
+      margin: 14px 0 7px;
       font-weight: 800;
       color: #475569;
     }
@@ -185,22 +167,19 @@
 
     .progress {
       width: 100%;
-      height: 18px;
+      height: 22px;
       background: #e2e8f0;
       border-radius: 999px;
       overflow: hidden;
-      margin-top: 25px;
+      margin-top: 27px;
     }
 
     #progressBar {
       width: 0%;
       height: 100%;
-      border-radius: inherit;
-      background: linear-gradient(
-        90deg,
-        #a5b4fc,
-        #c4b5fd
-      );
+      min-width: 0;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #a5b4fc, #c4b5fd);
       transition: width 0.5s ease;
     }
 
@@ -227,8 +206,15 @@
 
 
     /* =========================
-       NÍVEIS
+       PRÉMIOS + GRÁFICO
     ========================= */
+
+    .bottomTop {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 18px;
+      align-items: stretch;
+    }
 
     .levels {
       display: grid;
@@ -292,6 +278,74 @@
 
 
     /* =========================
+       GRÁFICO
+    ========================= */
+
+    .chartCard {
+      min-width: 0;
+    }
+
+    .chartHeader {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 8px;
+    }
+
+    .chartHeader .cardTitle {
+      margin-bottom: 0;
+    }
+
+    #chartCurrentScore {
+      flex-shrink: 0;
+      font-size: 14px;
+      font-weight: 700;
+      color: #6366f1;
+    }
+
+    .chartWrap {
+      width: 100%;
+      height: 250px;
+      overflow: hidden;
+      border-radius: 14px;
+    }
+
+    #progressChart {
+      display: block;
+      width: 100%;
+      height: 250px;
+    }
+
+    #chartLine {
+      fill: none;
+      stroke: #8b5cf6;
+      stroke-width: 5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    #chartDots circle {
+      fill: #8b5cf6;
+      stroke: white;
+      stroke-width: 3;
+    }
+
+    .chartGrid {
+      stroke: #e2e8f0;
+      stroke-width: 1;
+    }
+
+    #chartEmpty {
+      text-align: center;
+      color: #94a3b8;
+      font-size: 14px;
+      line-height: 1.4;
+      margin-top: 4px;
+    }
+
+
+    /* =========================
        AÇÕES
     ========================= */
 
@@ -312,10 +366,7 @@
 
     .actions {
       display: grid;
-      grid-template-columns: repeat(
-        auto-fit,
-        minmax(220px, 1fr)
-      );
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 10px;
     }
 
@@ -332,9 +383,7 @@
       background: #f8fafc;
       color: #475569;
       text-align: left;
-      transition:
-        transform 0.15s ease,
-        box-shadow 0.15s ease;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
 
     .action:hover {
@@ -387,71 +436,6 @@
 
     .adminLocked strong {
       color: #475569;
-    }
-
-
-    /* =========================
-       GRÁFICO
-    ========================= */
-
-    .chartWrap {
-      width: 100%;
-      overflow-x: auto;
-      overflow-y: hidden;
-      border-radius: 14px;
-    }
-
-    #progressChart {
-      display: block;
-      width: 100%;
-      min-width: 0;
-      height: 250px;
-    }
-
-    .chartHeader {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 15px;
-      margin-bottom: 8px;
-    }
-
-    .chartHeader .cardTitle {
-      margin-bottom: 0;
-    }
-
-    #chartCurrentScore {
-      flex-shrink: 0;
-      font-size: 14px;
-      font-weight: 700;
-      color: #6366f1;
-    }
-
-    #chartLine {
-      fill: none;
-      stroke: #8b5cf6;
-      stroke-width: 5;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    #chartDots circle {
-      fill: #8b5cf6;
-      stroke: white;
-      stroke-width: 3;
-    }
-
-    .chartGrid {
-      stroke: #e2e8f0;
-      stroke-width: 1;
-    }
-
-    #chartEmpty {
-      text-align: center;
-      color: #94a3b8;
-      font-size: 14px;
-      line-height: 1.4;
-      margin-top: -25px;
     }
 
 
@@ -517,7 +501,45 @@
 
 
     /* =========================
-       MODAL
+       BOTÕES
+    ========================= */
+
+    .primaryBtn {
+      border: 0;
+      padding: 12px 18px;
+      border-radius: 13px;
+      background: #8b5cf6;
+      color: white;
+      font-weight: 700;
+    }
+
+    .primaryBtn:hover {
+      background: #7c3aed;
+    }
+
+    .secondaryBtn {
+      border: 0;
+      padding: 12px 18px;
+      border-radius: 13px;
+      background: #f1f5f9;
+      color: #475569;
+      font-weight: 700;
+    }
+
+    .dangerBtn {
+      width: 100%;
+      border: 0;
+      padding: 12px 18px;
+      border-radius: 13px;
+      background: #fee2e2;
+      color: #b91c1c;
+      font-weight: 700;
+      margin-top: 15px;
+    }
+
+
+    /* =========================
+       MODAL ADMIN
     ========================= */
 
     .modal {
@@ -594,39 +616,6 @@
       box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
     }
 
-    .primaryBtn {
-      border: 0;
-      padding: 12px 18px;
-      border-radius: 13px;
-      background: #8b5cf6;
-      color: white;
-      font-weight: 700;
-    }
-
-    .primaryBtn:hover {
-      background: #7c3aed;
-    }
-
-    .secondaryBtn {
-      border: 0;
-      padding: 12px 18px;
-      border-radius: 13px;
-      background: #f1f5f9;
-      color: #475569;
-      font-weight: 700;
-    }
-
-    .dangerBtn {
-      width: 100%;
-      border: 0;
-      padding: 12px 18px;
-      border-radius: 13px;
-      background: #fee2e2;
-      color: #b91c1c;
-      font-weight: 700;
-      margin-top: 15px;
-    }
-
     .levelRow {
       display: grid;
       grid-template-columns: minmax(0, 1fr) 120px;
@@ -659,16 +648,12 @@
 
     @media (max-width: 800px) {
 
-      .grid {
+      .bottomTop {
         grid-template-columns: 1fr;
       }
 
-      .full {
-        grid-column: auto;
-      }
-
       #score {
-        font-size: 64px;
+        font-size: 68px;
       }
 
       .historyItem {
@@ -722,7 +707,7 @@
         font-size: 12px;
       }
 
-      .grid {
+      .mainGrid {
         gap: 12px;
       }
 
@@ -732,7 +717,7 @@
       }
 
       .scoreCard {
-        padding: 23px 16px 20px;
+        padding: 25px 16px 21px;
       }
 
       .scoreLabel {
@@ -745,7 +730,7 @@
       }
 
       .progress {
-        height: 15px;
+        height: 16px;
         margin-top: 20px;
       }
 
@@ -803,16 +788,12 @@
         gap: 4px;
       }
 
+      .chartWrap,
       #progressChart {
         height: 210px;
       }
 
-      .chartWrap {
-        overflow-x: hidden;
-      }
-
       #chartEmpty {
-        margin-top: -18px;
         font-size: 12px;
       }
 
@@ -904,7 +885,6 @@
 
 <body>
 
-
   <!-- CABEÇALHO -->
 
   <header>
@@ -933,7 +913,6 @@
 
         </div>
 
-
         <button
           id="adminBtn"
           type="button"
@@ -948,13 +927,14 @@
   </header>
 
 
-
   <main class="container">
 
-    <div class="grid">
+    <div class="mainGrid">
 
 
-      <!-- PONTUAÇÃO -->
+      <!-- =========================
+           PONTUAÇÃO NO TOPO
+      ========================== -->
 
       <section class="card scoreCard">
 
@@ -988,27 +968,110 @@
       </section>
 
 
+      <!-- =========================
+           PRÉMIOS + GRÁFICO
+      ========================== -->
 
-      <!-- NÍVEIS -->
+      <div class="bottomTop">
+
+
+        <!-- PRÉMIOS -->
+
+        <section class="card">
+
+          <h2 class="cardTitle">
+            🎁 Percurso de prémios
+          </h2>
+
+          <div
+            id="levels"
+            class="levels"
+          ></div>
+
+        </section>
+
+
+        <!-- GRÁFICO -->
+
+        <section class="card chartCard">
+
+          <div class="chartHeader">
+
+            <h2 class="cardTitle">
+              📈 Progresso da turma
+            </h2>
+
+            <span id="chartCurrentScore">
+              0 pontos
+            </span>
+
+          </div>
+
+          <div class="chartWrap">
+
+            <svg
+              id="progressChart"
+              viewBox="0 0 600 250"
+              preserveAspectRatio="none"
+            >
+
+              <line
+                class="chartGrid"
+                x1="30"
+                y1="30"
+                x2="570"
+                y2="30"
+              />
+
+              <line
+                class="chartGrid"
+                x1="30"
+                y1="85"
+                x2="570"
+                y2="85"
+              />
+
+              <line
+                class="chartGrid"
+                x1="30"
+                y1="140"
+                x2="570"
+                y2="140"
+              />
+
+              <line
+                class="chartGrid"
+                x1="30"
+                y1="195"
+                x2="570"
+                y2="195"
+              />
+
+              <path
+                id="chartLine"
+                d=""
+              ></path>
+
+              <g id="chartDots"></g>
+
+            </svg>
+
+          </div>
+
+          <div id="chartEmpty">
+            O gráfico será preenchido à medida que a turma ganhar ou perder pontos.
+          </div>
+
+        </section>
+
+      </div>
+
+
+      <!-- =========================
+           AÇÕES
+      ========================== -->
 
       <section class="card">
-
-        <h2 class="cardTitle">
-          🎁 Níveis e prémios
-        </h2>
-
-        <div
-          id="levels"
-          class="levels"
-        ></div>
-
-      </section>
-
-
-
-      <!-- AÇÕES -->
-
-      <section class="card full">
 
         <h2 class="cardTitle">
           ⭐ Pontuação
@@ -1044,87 +1107,11 @@
       </section>
 
 
+      <!-- =========================
+           HISTÓRICO
+      ========================== -->
 
-      <!-- GRÁFICO -->
-
-      <section class="card full">
-
-        <div class="chartHeader">
-
-          <h2 class="cardTitle">
-            📈 Progresso da turma
-          </h2>
-
-          <span id="chartCurrentScore">
-            0 pontos
-          </span>
-
-        </div>
-
-
-        <div class="chartWrap">
-
-          <svg
-            id="progressChart"
-            viewBox="0 0 600 250"
-            preserveAspectRatio="none"
-          >
-
-            <line
-              class="chartGrid"
-              x1="30"
-              y1="30"
-              x2="570"
-              y2="30"
-            />
-
-            <line
-              class="chartGrid"
-              x1="30"
-              y1="85"
-              x2="570"
-              y2="85"
-            />
-
-            <line
-              class="chartGrid"
-              x1="30"
-              y1="140"
-              x2="570"
-              y2="140"
-            />
-
-            <line
-              class="chartGrid"
-              x1="30"
-              y1="195"
-              x2="570"
-              y2="195"
-            />
-
-            <path
-              id="chartLine"
-              d=""
-            ></path>
-
-            <g id="chartDots"></g>
-
-          </svg>
-
-        </div>
-
-
-        <div id="chartEmpty">
-          O gráfico será preenchido à medida que a turma ganhar ou perder pontos.
-        </div>
-
-      </section>
-
-
-
-      <!-- HISTÓRICO -->
-
-      <section class="card full">
+      <section class="card">
 
         <h2 class="cardTitle">
           🕘 Histórico
@@ -1152,8 +1139,9 @@
   </main>
 
 
-
-  <!-- MODAL ADMINISTRAÇÃO -->
+  <!-- =========================
+       MODAL ADMINISTRAÇÃO
+  ========================== -->
 
   <div
     id="adminModal"
@@ -1176,7 +1164,6 @@
         </button>
 
       </div>
-
 
 
       <!-- PIN -->
@@ -1213,7 +1200,6 @@
         </button>
 
       </div>
-
 
 
       <!-- FORMULÁRIO ADMIN -->
@@ -1256,7 +1242,7 @@
             type="password"
             inputmode="numeric"
             autocomplete="new-password"
-            placeholder="Novo PIN"
+            placeholder="Deixe vazio para manter o PIN atual"
           >
 
         </div>
@@ -1311,8 +1297,9 @@
   </div>
 
 
-
-  <!-- SCRIPTS -->
+  <!-- =========================
+       SCRIPTS
+  ========================== -->
 
   <script src="config.js"></script>
 
@@ -1328,7 +1315,7 @@
 
     if (adminLogout) {
 
-      adminLogout.onclick = function() {
+      adminLogout.onclick = function () {
 
         const closeAdmin =
           document.getElementById("closeAdmin");
