@@ -1,71 +1,97 @@
-// ==========================================
-// DESAFIO DA TURMA - APP.JS
-// ==========================================
+// ============================================================
+// DESAFIO DA TURMA
+// app.js
+// ============================================================
 
 const SUPABASE_URL = window.SUPABASE_URL;
 const SUPABASE_KEY = window.SUPABASE_ANON_KEY;
 
 const KEY = "desafioTurmaV2";
 
-let supabaseClient = null;
-let classroomId = null;
+let supabase = null;
 let data = null;
 let history = [];
-
 let adminUnlocked = false;
 
 
-// ==========================================
+// ============================================================
 // DADOS POR DEFEITO
-// ==========================================
+// ============================================================
 
 const DEFAULT_DATA = {
+
   className: "Turma",
+
   pin: "1234",
+
   score: 0,
 
   levels: [
-    { name: "Sair mais cedo", points: 20, emoji: "🟦" },
-    { name: "Aula livre", points: 35, emoji: "🟩" },
-    { name: "Torneio", points: 50, emoji: "🟨" },
-    { name: "Aula na rua", points: 70, emoji: "🟧" },
-    { name: "Festa 1h", points: 100, emoji: "🟪" },
-    { name: "Festa 2h", points: 130, emoji: "🏆" }
+    {
+      name: "Sair mais cedo",
+      points: 20,
+      emoji: "🟦"
+    },
+    {
+      name: "Aula livre",
+      points: 35,
+      emoji: "🟩"
+    },
+    {
+      name: "Torneio",
+      points: 50,
+      emoji: "🟨"
+    },
+    {
+      name: "Aula na rua",
+      points: 70,
+      emoji: "🟧"
+    },
+    {
+      name: "Festa 1h",
+      points: 100,
+      emoji: "🟪"
+    },
+    {
+      name: "Festa 2h",
+      points: 130,
+      emoji: "🏆"
+    }
   ],
 
   actions: [
     {
       name: "Semana sem ocorrências nem faltas",
-      points: 3,
+      delta: 3,
       emoji: "🟢"
     },
     {
       name: "Elogio",
-      points: 4,
+      delta: 4,
       emoji: "⭐"
     },
     {
       name: "Ocorrência",
-      points: -3,
+      delta: -3,
       emoji: "🔴"
     },
     {
       name: "Falta injustificada",
-      points: -2,
+      delta: -2,
       emoji: "🟠"
     },
     {
       name: "Falta disciplinar",
-      points: -10,
+      delta: -10,
       emoji: "🚨"
     }
   ]
 };
 
 
-// ==========================================
+// ============================================================
 // FUNÇÕES AUXILIARES
-// ==========================================
+// ============================================================
 
 function $(selector) {
   return document.querySelector(selector);
@@ -73,6 +99,7 @@ function $(selector) {
 
 
 function escapeHtml(value) {
+
   return String(value ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -82,139 +109,274 @@ function escapeHtml(value) {
 }
 
 
-function cloneDefaultData() {
-  return JSON.parse(JSON.stringify(DEFAULT_DATA));
+function cloneDefaults() {
+
+  return JSON.parse(
+    JSON.stringify(DEFAULT_DATA)
+  );
 }
 
 
-// ==========================================
-// LOCAL STORAGE
-// ==========================================
-
-function loadLocalData() {
-  try {
-    const saved = localStorage.getItem(KEY);
-
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch (error) {
-    console.error("Erro ao ler dados locais:", error);
-  }
-
-  return cloneDefaultData();
-}
-
-
-function saveLocalData() {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(data));
-  } catch (error) {
-    console.error("Erro ao guardar dados locais:", error);
-  }
-}
-
-
-// ==========================================
-// SUPABASE
-// ==========================================
-
-function initSupabase() {
+function normaliseLevels(levels) {
 
   if (
-    !SUPABASE_URL ||
-    !SUPABASE_KEY ||
-    !window.supabase
+    !Array.isArray(levels) ||
+    levels.length === 0
   ) {
-    console.warn("Supabase não está disponível.");
-    return;
+
+    return cloneDefaults().levels;
   }
+
+  return levels.map(level => ({
+
+    name:
+      String(
+        level?.name ||
+        "Prémio"
+      ),
+
+    points:
+      Number(level?.points) || 0,
+
+    emoji:
+      String(
+        level?.emoji ||
+        "🎁"
+      )
+
+  }));
+}
+
+
+function normaliseActions(actions) {
+
+  if (
+    !Array.isArray(actions) ||
+    actions.length === 0
+  ) {
+
+    return cloneDefaults().actions;
+  }
+
+  return actions.map(action => ({
+
+    name:
+      String(
+        action?.name ||
+        "Ação"
+      ),
+
+    delta:
+      Number(action?.delta) || 0,
+
+    emoji:
+      String(
+        action?.emoji ||
+        "⭐"
+      )
+
+  }));
+}
+
+
+// ============================================================
+// LOCAL STORAGE
+// ============================================================
+
+function loadLocalData() {
 
   try {
 
-    supabaseClient =
-      window.supabase.createClient(
-        SUPABASE_URL,
-        SUPABASE_KEY
-      );
+    const saved =
+      localStorage.getItem(KEY);
+
+    if (!saved) {
+
+      return cloneDefaults();
+    }
+
+    const parsed =
+      JSON.parse(saved);
+
+    return {
+
+      className:
+        parsed.className ||
+        DEFAULT_DATA.className,
+
+      pin:
+        parsed.pin ||
+        DEFAULT_DATA.pin,
+
+      score:
+        Math.max(
+          0,
+          Number(parsed.score) || 0
+        ),
+
+      levels:
+        normaliseLevels(
+          parsed.levels
+        ),
+
+      actions:
+        normaliseActions(
+          parsed.actions
+        )
+    };
 
   } catch (error) {
 
     console.error(
-      "Erro ao iniciar Supabase:",
+      "Erro ao carregar dados locais:",
       error
     );
 
+    return cloneDefaults();
   }
 }
 
 
-// ==========================================
-// CARREGAR TURMA
-// ==========================================
-
-async function loadClassroom() {
-
-  if (!supabaseClient) {
-    return;
-  }
+function saveLocalData() {
 
   try {
 
-    const { data: rows, error } =
-      await supabaseClient
+    localStorage.setItem(
+      KEY,
+      JSON.stringify(data)
+    );
+
+  } catch (error) {
+
+    console.error(
+      "Erro ao guardar dados:",
+      error
+    );
+  }
+}
+
+
+// ============================================================
+// SUPABASE
+// ============================================================
+
+function initSupabase() {
+
+  try {
+
+    if (
+      window.supabase &&
+      SUPABASE_URL &&
+      SUPABASE_KEY
+    ) {
+
+      supabase =
+        window.supabase.createClient(
+          SUPABASE_URL,
+          SUPABASE_KEY
+        );
+    }
+
+  } catch (error) {
+
+    console.error(
+      "Erro Supabase:",
+      error
+    );
+
+    supabase = null;
+  }
+}
+
+
+// ============================================================
+// CARREGAR TURMA
+// ============================================================
+
+async function loadClassroom() {
+
+  data =
+    loadLocalData();
+
+  renderAll();
+
+
+  if (!supabase) {
+    return;
+  }
+
+
+  try {
+
+    const {
+      data: remote,
+      error
+    } =
+      await supabase
         .from("classrooms")
         .select("*")
-        .limit(1);
+        .limit(1)
+        .maybeSingle();
+
 
     if (error) {
+
       console.error(
-        "Erro ao carregar turma:",
+        "Erro Supabase:",
         error
       );
+
       return;
     }
 
 
-    if (rows && rows.length > 0) {
-
-      const remote = rows[0];
-
-      classroomId = remote.id;
-
-      data = {
-        className:
-          remote.name ||
-          DEFAULT_DATA.className,
-
-        pin:
-          remote.pin ||
-          DEFAULT_DATA.pin,
-
-        score:
-          Math.max(
-            0,
-            Number(remote.score) || 0
-          ),
-
-        levels:
-          Array.isArray(remote.levels)
-            ? remote.levels
-            : DEFAULT_DATA.levels,
-
-        actions:
-          Array.isArray(remote.actions)
-            ? remote.actions
-            : DEFAULT_DATA.actions
-      };
-
-      saveLocalData();
-
-    } else {
+    if (!remote) {
 
       await createClassroom();
 
+      renderAll();
+
+      return;
     }
+
+
+    data = {
+
+      className:
+        remote.name ||
+        DEFAULT_DATA.className,
+
+      pin:
+        remote.pin ||
+        DEFAULT_DATA.pin,
+
+      score:
+        Math.max(
+          0,
+          Number(remote.score) || 0
+        ),
+
+      levels:
+        normaliseLevels(
+          remote.levels
+        ),
+
+      actions:
+        normaliseActions(
+          remote.actions
+        )
+    };
+
+
+    saveLocalData();
+
+
+    await loadHistory(
+      remote.id
+    );
+
+
+    renderAll();
 
   } catch (error) {
 
@@ -222,49 +384,90 @@ async function loadClassroom() {
       "Erro ao carregar turma:",
       error
     );
-
   }
 }
 
 
-// ==========================================
+// ============================================================
 // CRIAR TURMA
-// ==========================================
+// ============================================================
 
 async function createClassroom() {
 
-  data = cloneDefaultData();
-  saveLocalData();
-
-  if (!supabaseClient) {
+  if (!supabase) {
     return;
   }
 
+
   try {
 
-    const { data: created, error } =
-      await supabaseClient
+    const {
+      data: created,
+      error
+    } =
+      await supabase
         .from("classrooms")
         .insert({
-          name: data.className,
-          pin: data.pin,
-          score: data.score,
-          levels: data.levels,
-          actions: data.actions
+
+          name:
+            DEFAULT_DATA.className,
+
+          pin:
+            DEFAULT_DATA.pin,
+
+          score: 0,
+
+          levels:
+            DEFAULT_DATA.levels,
+
+          actions:
+            DEFAULT_DATA.actions
+
         })
         .select()
         .single();
 
+
     if (error) {
+
       console.error(
         "Erro ao criar turma:",
         error
       );
+
       return;
     }
 
+
     if (created) {
-      classroomId = created.id;
+
+      data = {
+
+        className:
+          created.name,
+
+        pin:
+          created.pin,
+
+        score:
+          Math.max(
+            0,
+            Number(created.score) || 0
+          ),
+
+        levels:
+          normaliseLevels(
+            created.levels
+          ),
+
+        actions:
+          normaliseActions(
+            created.actions
+          )
+      };
+
+
+      saveLocalData();
     }
 
   } catch (error) {
@@ -273,391 +476,474 @@ async function createClassroom() {
       "Erro ao criar turma:",
       error
     );
-
   }
 }
 
 
-// ==========================================
+// ============================================================
 // GUARDAR TURMA
-// ==========================================
+// ============================================================
 
 async function saveClassroom() {
 
-  data.score = Math.max(
-    0,
-    Number(data.score) || 0
-  );
-
   saveLocalData();
 
-  if (
-    !supabaseClient ||
-    !classroomId
-  ) {
+
+  if (!supabase) {
     return;
   }
 
+
   try {
 
-    const { error } =
-      await supabaseClient
+    const {
+      data: classroom,
+      error
+    } =
+      await supabase
         .from("classrooms")
-        .update({
-          name: data.className,
-          pin: data.pin,
-          score: data.score,
-          levels: data.levels,
-          actions: data.actions,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", classroomId);
+        .select("id")
+        .limit(1)
+        .maybeSingle();
 
-    if (error) {
-      console.error(
-        "Erro ao guardar turma:",
-        error
-      );
+
+    if (error || !classroom) {
+      return;
     }
+
+
+    await supabase
+      .from("classrooms")
+      .update({
+
+        name:
+          data.className,
+
+        pin:
+          data.pin,
+
+        score:
+          Math.max(
+            0,
+            Number(data.score) || 0
+          ),
+
+        levels:
+          normaliseLevels(
+            data.levels
+          ),
+
+        actions:
+          normaliseActions(
+            data.actions
+          ),
+
+        updated_at:
+          new Date().toISOString()
+
+      })
+      .eq(
+        "id",
+        classroom.id
+      );
 
   } catch (error) {
 
     console.error(
-      "Erro ao guardar turma:",
+      "Erro ao guardar:",
       error
     );
-
   }
 }
 
 
-// ==========================================
+// ============================================================
 // HISTÓRICO
-// ==========================================
+// ============================================================
 
-async function loadHistory() {
+async function loadHistory(classroomId) {
 
   history = [];
 
-  if (
-    !supabaseClient ||
-    !classroomId
-  ) {
+
+  if (!supabase || !classroomId) {
+
     renderHistory();
-    renderChart();
+
     return;
   }
 
+
   try {
 
-    const { data: rows, error } =
-      await supabaseClient
+    const {
+      data: rows,
+      error
+    } =
+      await supabase
         .from("score_history")
         .select("*")
-        .eq("classroom_id", classroomId)
-        .order("created_at", {
-          ascending: true
-        });
+        .eq(
+          "classroom_id",
+          classroomId
+        )
+        .order(
+          "created_at",
+          {
+            ascending: false
+          }
+        );
+
 
     if (error) {
 
       console.error(
-        "Erro ao carregar histórico:",
+        "Erro histórico:",
         error
       );
+
+      renderHistory();
 
       return;
     }
 
-    history = rows || [];
+
+    history =
+      rows || [];
+
 
     renderHistory();
-    renderChart();
 
   } catch (error) {
 
     console.error(
-      "Erro no histórico:",
+      "Erro histórico:",
       error
     );
-
   }
 }
 
 
-// ==========================================
+// ============================================================
 // GUARDAR HISTÓRICO
-// ==========================================
+// ============================================================
 
 async function saveHistoryItem(item) {
 
-  history.push(item);
+  history.unshift(item);
 
-  if (
-    !supabaseClient ||
-    !classroomId
-  ) {
-    renderHistory();
-    renderChart();
+  renderHistory();
+
+
+  if (!supabase) {
     return;
   }
 
+
   try {
 
-    const { error } =
-      await supabaseClient
-        .from("score_history")
-        .insert({
-          classroom_id: classroomId,
-          name: item.name,
-          emoji: item.emoji,
-          delta: item.delta,
-          before_score: item.before_score,
-          after_score: item.after_score,
-          created_at: item.created_at
-        });
+    const {
+      data: classroom
+    } =
+      await supabase
+        .from("classrooms")
+        .select("id")
+        .limit(1)
+        .maybeSingle();
 
-    if (error) {
-      console.error(
-        "Erro ao guardar histórico:",
-        error
-      );
+
+    if (!classroom) {
+      return;
     }
+
+
+    await supabase
+      .from("score_history")
+      .insert({
+
+        classroom_id:
+          classroom.id,
+
+        name:
+          item.name,
+
+        emoji:
+          item.emoji,
+
+        delta:
+          item.delta,
+
+        before_score:
+          item.before_score,
+
+        after_score:
+          item.after_score,
+
+        created_at:
+          item.created_at
+      });
 
   } catch (error) {
 
     console.error(
-      "Erro ao guardar histórico:",
+      "Erro histórico:",
       error
     );
-
   }
-
-  renderHistory();
-  renderChart();
 }
 
 
-// ==========================================
-// RENDER PRINCIPAL
-// ==========================================
+// ============================================================
+// RENDER
+// ============================================================
 
-function render() {
+function renderAll() {
 
   if (!data) {
     return;
   }
 
-  data.score = Math.max(
-    0,
-    Number(data.score) || 0
-  );
+  renderHeader();
 
-
-  // Nome da turma
-
-  if ($("#classTitle")) {
-    $("#classTitle").textContent =
-      data.className || "Turma";
-  }
-
-
-  // Pontuação
-
-  if ($("#score")) {
-    $("#score").textContent =
-      Math.max(0, data.score);
-  }
-
+  renderScore();
 
   renderProgress();
+
   renderLevels();
+
   renderActions();
+
   renderHistory();
+
   renderChart();
-  updateAdminVisibility();
 }
 
 
-// ==========================================
-// BARRA DE PROGRESSO
-// ==========================================
+// ============================================================
+// CABEÇALHO
+// ============================================================
+
+function renderHeader() {
+
+  const title =
+    $("#classTitle");
+
+  if (title) {
+
+    title.textContent =
+      data.className ||
+      "Turma";
+  }
+}
+
+
+// ============================================================
+// PONTUAÇÃO
+// ============================================================
+
+function renderScore() {
+
+  const score =
+    $("#score");
+
+  if (score) {
+
+    score.textContent =
+      Math.max(
+        0,
+        Number(data.score) || 0
+      );
+  }
+}
+
+
+// ============================================================
+// PROGRESSO
+// ============================================================
 
 function renderProgress() {
 
-  if (!data || !data.levels) {
+  const score =
+    Math.max(
+      0,
+      Number(data.score) || 0
+    );
+
+
+  const levels =
+    normaliseLevels(
+      data.levels
+    ).sort(
+      (a, b) =>
+        Number(a.points) -
+        Number(b.points)
+    );
+
+
+  const progressBar =
+    $("#progressBar");
+
+  const nextText =
+    $("#nextText");
+
+  const celebration =
+    $("#celebration");
+
+
+  if (!levels.length) {
     return;
   }
 
-  const score =
-    Math.max(0, data.score);
 
-  const sortedLevels =
-    [...data.levels]
-      .sort((a, b) =>
-        Number(a.points) -
-        Number(b.points)
-      );
+  const next =
+    levels.find(
+      level =>
+        score <
+        Number(level.points)
+    );
 
 
-  let nextLevel = null;
+  if (!next) {
 
-  for (const level of sortedLevels) {
-
-    if (
-      Number(level.points) > score
-    ) {
-      nextLevel = level;
-      break;
+    if (progressBar) {
+      progressBar.style.width =
+        "100%";
     }
 
+    if (nextText) {
+      nextText.textContent =
+        "🎉 Todos os prémios alcançados!";
+    }
+
+    if (celebration) {
+      celebration.textContent =
+        "🏆 Parabéns!";
+    }
+
+    return;
   }
 
 
-  let percentage = 100;
+  const previous =
+    levels.filter(
+      level =>
+        Number(level.points) <=
+        score
+    );
 
-  if (nextLevel) {
 
-    const previousLevel =
-      [...sortedLevels]
-        .filter(level =>
-          Number(level.points) <= score
+  const previousPoints =
+    previous.length
+      ? Number(
+          previous[
+            previous.length - 1
+          ].points
         )
-        .pop();
+      : 0;
 
-    const start =
-      previousLevel
-        ? Number(previousLevel.points)
-        : 0;
 
-    const target =
-      Number(nextLevel.points);
+  const target =
+    Number(next.points);
 
-    if (target > start) {
 
-      percentage =
-        ((score - start) /
-          (target - start)) * 100;
+  const range =
+    target - previousPoints;
 
-    }
 
-  }
+  const current =
+    score - previousPoints;
+
+
+  let percentage =
+    range > 0
+      ? (current / range) * 100
+      : 0;
 
 
   percentage =
     Math.max(
       0,
-      Math.min(100, percentage)
+      Math.min(
+        100,
+        percentage
+      )
     );
 
 
-  if ($("#progressBar")) {
+  if (progressBar) {
 
-    $("#progressBar").style.width =
-      percentage + "%";
-
+    progressBar.style.width =
+      `${percentage}%`;
   }
 
 
-  if ($("#nextText")) {
+  if (nextText) {
 
-    if (nextLevel) {
-
-      const missing =
-        Math.max(
-          0,
-          Number(nextLevel.points) -
-          score
-        );
-
-      $("#nextText").textContent =
-        `Faltam ${missing} pontos para: ${nextLevel.emoji || "🎁"} ${nextLevel.name}`;
-
-    } else {
-
-      $("#nextText").textContent =
-        "🎉 Todos os prémios foram alcançados!";
-
-    }
-
+    nextText.textContent =
+      `${next.emoji} Próximo prémio: ${next.name} — faltam ${Math.max(
+        0,
+        target - score
+      )} pontos`;
   }
 
 
-  if ($("#celebration")) {
+  if (celebration) {
 
-    if (
-      sortedLevels.length &&
-      score >=
-        Number(
-          sortedLevels[
-            sortedLevels.length - 1
-          ].points
-        )
-    ) {
-
-      $("#celebration").textContent =
-        "🏆 Parabéns! A turma alcançou o objetivo máximo!";
-
-      $("#celebration")
-        .classList
-        .remove("hidden");
-
-    } else {
-
-      $("#celebration")
-        .classList
-        .add("hidden");
-
-    }
-
+    celebration.textContent =
+      previous.length
+        ? `🎉 ${previous[previous.length - 1].name} alcançado!`
+        : "";
   }
-
 }
 
 
-// ==========================================
+// ============================================================
 // PRÉMIOS
-// ==========================================
+// ============================================================
 
 function renderLevels() {
 
   const container =
     $("#levels");
 
-  if (!container || !data) {
+  if (!container) {
     return;
   }
 
-  const sortedLevels =
-    [...data.levels]
-      .sort((a, b) =>
-        Number(a.points) -
-        Number(b.points)
-      );
+
+  let levels =
+    Array.isArray(data.levels) &&
+    data.levels.length
+      ? data.levels
+      : cloneDefaults().levels;
 
 
-  if (!sortedLevels.length) {
+  data.levels =
+    normaliseLevels(levels);
 
-    container.innerHTML =
-      "<div class='adminLocked'>Ainda não existem prémios.</div>";
 
-    return;
-  }
+  data.levels.sort(
+    (a, b) =>
+      Number(a.points) -
+      Number(b.points)
+  );
 
 
   container.innerHTML =
-    sortedLevels
+    data.levels
       .map(level => {
 
         const unlocked =
-          data.score >=
+          Number(data.score) >=
           Number(level.points);
 
+
         return `
+
           <div class="level ${unlocked ? "unlocked" : ""}">
 
             <div class="emoji">
-              ${escapeHtml(level.emoji || "🎁")}
+              ${escapeHtml(level.emoji)}
             </div>
 
             <div class="info">
@@ -674,22 +960,25 @@ function renderLevels() {
 
             ${
               unlocked
-                ? `<div class="badge">✓ Alcançado</div>`
+                ? `
+                  <div class="badge">
+                    ✓ Alcançado
+                  </div>
+                `
                 : ""
             }
 
           </div>
-        `;
 
+        `;
       })
       .join("");
-
 }
 
 
-// ==========================================
-// AÇÕES
-// ==========================================
+// ============================================================
+// GANHAR / RETIRAR PONTOS
+// ============================================================
 
 function renderActions() {
 
@@ -700,176 +989,155 @@ function renderActions() {
     $("#negativeActions");
 
 
-  if (!positive || !negative || !data) {
+  if (!positive || !negative) {
     return;
   }
 
 
-  const positives =
-    data.actions.filter(
+  const actions =
+    normaliseActions(
+      data.actions
+    );
+
+
+  data.actions =
+    actions;
+
+
+  const positiveActions =
+    actions.filter(
       action =>
-        Number(action.points) > 0
+        Number(action.delta) > 0
     );
 
 
-  const negatives =
-    data.actions.filter(
+  const negativeActions =
+    actions.filter(
       action =>
-        Number(action.points) < 0
+        Number(action.delta) < 0
     );
 
 
-  positive.innerHTML =
-    renderActionButtons(
-      positives,
-      true
-    );
+  // ----------------------------------------------------------
+  // GANHAR PONTOS
+  // ----------------------------------------------------------
+
+  positive.innerHTML = `
+
+    <div class="actionsTitle">
+      ${adminUnlocked
+        ? "Escolhe uma ação:"
+        : "🔒 Disponível apenas na Administração"}
+    </div>
+
+    ${
+      positiveActions
+        .map(action => {
+
+          const index =
+            actions.indexOf(action);
 
 
-  negative.innerHTML =
-    renderActionButtons(
-      negatives,
-      false
-    );
+          return `
 
-}
+            <button
+              type="button"
+              class="actionBtn positive"
+              data-action-index="${index}"
+              ${adminUnlocked ? "" : "disabled"}
+            >
 
+              <span class="actionEmoji">
+                ${escapeHtml(action.emoji)}
+              </span>
 
-function renderActionButtons(
-  actions,
-  isPositive
-) {
+              <span class="actionName">
+                ${escapeHtml(action.name)}
+              </span>
 
-  if (!actions.length) {
+              <strong>
+                +${Math.abs(Number(action.delta))}
+              </strong>
 
-    return `
-      <div class="adminLocked">
-        ${
-          adminUnlocked
-            ? "Não existem ações configuradas."
-            : "🔒 Entre na Administração para alterar os pontos."
-        }
-      </div>
-    `;
+            </button>
 
-  }
-
-
-  if (!adminUnlocked) {
-
-    return `
-      <div class="adminLocked">
-        🔒 <strong>Área do administrador</strong><br>
-        Entre na Administração para ganhar ou retirar pontos.
-      </div>
-    `;
-
-  }
-
-
-  return actions
-    .map((action, index) => {
-
-      const originalIndex =
-        data.actions.indexOf(action);
-
-      return `
-        <button
-          type="button"
-          class="action ${isPositive ? "positive" : "negative"}"
-          data-action-index="${originalIndex}"
-        >
-
-          <span class="label">
-            ${escapeHtml(action.emoji || "")}
-            ${escapeHtml(action.name)}
-          </span>
-
-          <span class="value">
-            ${
-              Number(action.points) > 0
-                ? "+"
-                : ""
-            }${Number(action.points)}
-          </span>
-
-        </button>
-      `;
-
-    })
-    .join("");
-
-}
-
-
-// ==========================================
-// CLIQUE NAS AÇÕES
-// ==========================================
-
-function setupActionClicks() {
-
-  document.addEventListener(
-    "click",
-    function (event) {
-
-      const button =
-        event.target.closest(
-          "[data-action-index]"
-        );
-
-      if (!button) {
-        return;
-      }
-
-
-      if (!adminUnlocked) {
-
-        alert(
-          "🔒 Apenas o administrador pode alterar os pontos."
-        );
-
-        return;
-      }
-
-
-      const index =
-        Number(
-          button.dataset.actionIndex
-        );
-
-
-      if (
-        !Number.isInteger(index) ||
-        !data.actions[index]
-      ) {
-        return;
-      }
-
-
-      const action =
-        data.actions[index];
-
-
-      changePoints(action);
-
+          `;
+        })
+        .join("")
     }
-  );
 
+  `;
+
+
+  // ----------------------------------------------------------
+  // RETIRAR PONTOS
+  // ----------------------------------------------------------
+
+  negative.innerHTML = `
+
+    <div class="actionsTitle">
+      ${adminUnlocked
+        ? "Escolhe uma ação:"
+        : "🔒 Disponível apenas na Administração"}
+    </div>
+
+    ${
+      negativeActions
+        .map(action => {
+
+          const index =
+            actions.indexOf(action);
+
+
+          return `
+
+            <button
+              type="button"
+              class="actionBtn negative"
+              data-action-index="${index}"
+              ${adminUnlocked ? "" : "disabled"}
+            >
+
+              <span class="actionEmoji">
+                ${escapeHtml(action.emoji)}
+              </span>
+
+              <span class="actionName">
+                ${escapeHtml(action.name)}
+              </span>
+
+              <strong>
+                -${Math.abs(Number(action.delta))}
+              </strong>
+
+            </button>
+
+          `;
+        })
+        .join("")
+    }
+
+  `;
 }
 
 
-// ==========================================
+// ============================================================
 // ALTERAR PONTOS
-// ==========================================
+// ============================================================
 
 async function changePoints(action) {
 
   if (!adminUnlocked) {
 
     alert(
-      "🔒 Apenas o administrador pode alterar os pontos."
+      "Entra primeiro na Administração."
     );
 
+    return;
+  }
+
+
+  if (!action) {
     return;
   }
 
@@ -881,73 +1149,218 @@ async function changePoints(action) {
     );
 
 
-  const requestedDelta =
-    Number(action.points) || 0;
+  const delta =
+    Number(action.delta) || 0;
 
 
-  let after =
-    before + requestedDelta;
+  const after =
+    Math.max(
+      0,
+      before + delta
+    );
 
 
-  // Nunca abaixo de zero
-
-  after =
-    Math.max(0, after);
+  data.score =
+    after;
 
 
-  const actualChange =
-    after - before;
+  const item = {
+
+    name:
+      action.name,
+
+    emoji:
+      action.emoji,
+
+    delta:
+      after - before,
+
+    before_score:
+      before,
+
+    after_score:
+      after,
+
+    created_at:
+      new Date().toISOString()
+  };
 
 
-  // Se tentar retirar pontos quando já está a zero
+  saveLocalData();
 
-  if (actualChange === 0) {
+  renderAll();
+
+  await saveClassroom();
+
+  await saveHistoryItem(item);
+}
+
+
+// ============================================================
+// DESFAZER
+// ============================================================
+
+async function undo() {
+
+  if (!adminUnlocked) {
 
     alert(
-      "A turma já está com 0 pontos."
+      "Entra primeiro na Administração."
     );
 
     return;
   }
 
 
-  data.score = after;
+  if (!history.length) {
+
+    alert(
+      "Não existem alterações para desfazer."
+    );
+
+    return;
+  }
 
 
-  const historyItem = {
+  const item =
+    history[0];
 
-    classroom_id: classroomId,
 
-    name: action.name,
+  data.score =
+    Math.max(
+      0,
+      Number(item.before_score) || 0
+    );
 
-    emoji: action.emoji || "",
 
-    delta: actualChange,
+  history.shift();
 
-    before_score: before,
 
-    after_score: after,
+  saveLocalData();
 
-    created_at:
-      new Date().toISOString()
-
-  };
-
+  renderAll();
 
   await saveClassroom();
 
-  await saveHistoryItem(
-    historyItem
-  );
 
-  render();
+  if (
+    supabase &&
+    item.id
+  ) {
 
+    await supabase
+      .from("score_history")
+      .delete()
+      .eq(
+        "id",
+        item.id
+      );
+  }
 }
 
 
-// ==========================================
-// HISTÓRICO
-// ==========================================
+// ============================================================
+// LIMPAR HISTÓRICO
+// ============================================================
+
+async function clearHistory() {
+
+  if (!adminUnlocked) {
+
+    alert(
+      "Entra primeiro na Administração."
+    );
+
+    return;
+  }
+
+
+  if (!history.length) {
+    return;
+  }
+
+
+  if (
+    !confirm(
+      "Queres apagar todo o histórico?"
+    )
+  ) {
+    return;
+  }
+
+
+  history = [];
+
+  renderHistory();
+
+
+  if (!supabase) {
+    return;
+  }
+
+
+  const {
+    data: classroom
+  } =
+    await supabase
+      .from("classrooms")
+      .select("id")
+      .limit(1)
+      .maybeSingle();
+
+
+  if (classroom) {
+
+    await supabase
+      .from("score_history")
+      .delete()
+      .eq(
+        "classroom_id",
+        classroom.id
+      );
+  }
+}
+
+
+// ============================================================
+// RESET
+// ============================================================
+
+async function resetScore() {
+
+  if (!adminUnlocked) {
+
+    alert(
+      "Entra primeiro na Administração."
+    );
+
+    return;
+  }
+
+
+  if (
+    !confirm(
+      "Queres mesmo colocar a pontuação a zero?"
+    )
+  ) {
+    return;
+  }
+
+
+  data.score = 0;
+
+
+  saveLocalData();
+
+  renderAll();
+
+  await saveClassroom();
+}
+
+
+// ============================================================
+// HISTÓRICO VISUAL
+// ============================================================
 
 function renderHistory() {
 
@@ -962,8 +1375,8 @@ function renderHistory() {
   if (!history.length) {
 
     container.innerHTML = `
-      <div class="adminLocked">
-        Ainda não existem movimentos de pontos.
+      <div class="empty">
+        Ainda não existem alterações.
       </div>
     `;
 
@@ -971,21 +1384,9 @@ function renderHistory() {
   }
 
 
-  const latest =
-    [...history]
-      .slice()
-      .reverse();
-
-
   container.innerHTML =
-    latest
-      .map((item, reversedIndex) => {
-
-        const originalIndex =
-          history.length -
-          1 -
-          reversedIndex;
-
+    history
+      .map(item => {
 
         const delta =
           Number(item.delta) || 0;
@@ -996,32 +1397,40 @@ function renderHistory() {
             ? new Date(
                 item.created_at
               ).toLocaleString(
-                "pt-PT",
-                {
-                  dateStyle: "short",
-                  timeStyle: "short"
-                }
+                "pt-PT"
               )
             : "";
 
 
         return `
+
           <div class="historyItem">
 
-            <div class="when">
-              ${escapeHtml(date)}
+            <div class="historyEmoji">
+              ${escapeHtml(
+                item.emoji || "⭐"
+              )}
             </div>
 
-            <div class="desc">
-              ${escapeHtml(item.emoji || "")}
-              ${escapeHtml(item.name || "Movimento")}
+            <div class="historyInfo">
+
+              <div class="historyName">
+                ${escapeHtml(
+                  item.name
+                )}
+              </div>
+
+              <div class="historyDate">
+                ${escapeHtml(date)}
+              </div>
+
             </div>
 
             <div
-              class="delta ${
+              class="historyDelta ${
                 delta >= 0
-                  ? "pos"
-                  : "neg"
+                  ? "positive"
+                  : "negative"
               }"
             >
               ${
@@ -1031,279 +1440,17 @@ function renderHistory() {
               }${delta}
             </div>
 
-            <button
-              type="button"
-              class="undo"
-              data-undo-index="${originalIndex}"
-              title="Desfazer"
-            >
-              ↩
-            </button>
-
           </div>
-        `;
 
+        `;
       })
       .join("");
-
 }
 
 
-// ==========================================
-// DESFAZER
-// ==========================================
-
-async function undo(index) {
-
-  if (!adminUnlocked) {
-
-    alert(
-      "🔒 Apenas o administrador pode desfazer alterações."
-    );
-
-    return;
-  }
-
-
-  const item =
-    history[index];
-
-
-  if (!item) {
-    return;
-  }
-
-
-  const current =
-    Math.max(
-      0,
-      Number(data.score) || 0
-    );
-
-
-  data.score =
-    Math.max(
-      0,
-      Number(item.before_score) || 0
-    );
-
-
-  await saveClassroom();
-
-
-  // Apaga o movimento do Supabase
-
-  if (
-    supabaseClient &&
-    item.id
-  ) {
-
-    const { error } =
-      await supabaseClient
-        .from("score_history")
-        .delete()
-        .eq("id", item.id);
-
-    if (error) {
-
-      console.error(
-        "Erro ao apagar movimento:",
-        error
-      );
-
-    }
-
-  }
-
-
-  history.splice(index, 1);
-
-
-  render();
-
-}
-
-
-// ==========================================
-// CLIQUE DESFAZER
-// ==========================================
-
-function setupUndoClicks() {
-
-  document.addEventListener(
-    "click",
-    function (event) {
-
-      const button =
-        event.target.closest(
-          "[data-undo-index]"
-        );
-
-      if (!button) {
-        return;
-      }
-
-
-      if (!adminUnlocked) {
-
-        alert(
-          "🔒 Apenas o administrador pode desfazer alterações."
-        );
-
-        return;
-      }
-
-
-      const index =
-        Number(
-          button.dataset.undoIndex
-        );
-
-
-      undo(index);
-
-    }
-  );
-
-}
-
-
-// ==========================================
-// APAGAR HISTÓRICO
-// ==========================================
-
-async function clearHistory() {
-
-  if (!adminUnlocked) {
-
-    alert(
-      "🔒 Apenas o administrador pode apagar o histórico."
-    );
-
-    return;
-  }
-
-
-  if (!history.length) {
-    return;
-  }
-
-
-  const confirmed =
-    confirm(
-      "Tem a certeza que quer apagar todo o histórico?"
-    );
-
-
-  if (!confirmed) {
-    return;
-  }
-
-
-  if (
-    supabaseClient &&
-    classroomId
-  ) {
-
-    const { error } =
-      await supabaseClient
-        .from("score_history")
-        .delete()
-        .eq(
-          "classroom_id",
-          classroomId
-        );
-
-
-    if (error) {
-
-      alert(
-        "Não foi possível apagar o histórico."
-      );
-
-      console.error(error);
-
-      return;
-    }
-
-  }
-
-
-  history = [];
-
-  render();
-
-}
-
-
-// ==========================================
-// RESET
-// ==========================================
-
-async function resetData() {
-
-  if (!adminUnlocked) {
-
-    alert(
-      "🔒 Apenas o administrador pode repor os dados."
-    );
-
-    return;
-  }
-
-
-  const confirmed =
-    confirm(
-      "Repor os dados originais? A pontuação voltará a 0."
-    );
-
-
-  if (!confirmed) {
-    return;
-  }
-
-
-  data = cloneDefaultData();
-
-
-  await saveClassroom();
-
-
-  if (
-    supabaseClient &&
-    classroomId
-  ) {
-
-    await supabaseClient
-      .from("score_history")
-      .delete()
-      .eq(
-        "classroom_id",
-        classroomId
-      );
-
-  }
-
-
-  history = [];
-
-
-  render();
-
-
-  loadAdmin();
-
-
-  alert(
-    "Os dados foram repostos."
-  );
-
-}
-
-
-// ==========================================
+// ============================================================
 // GRÁFICO
-// ==========================================
+// ============================================================
 
 function renderChart() {
 
@@ -1313,32 +1460,23 @@ function renderChart() {
   const dots =
     $("#chartDots");
 
-  const empty =
-    $("#chartEmpty");
-
   const current =
     $("#chartCurrentScore");
 
+  const empty =
+    $("#chartEmpty");
 
-  if (
-    !line ||
-    !dots ||
-    !empty ||
-    !current
-  ) {
+
+  if (!line || !dots) {
     return;
   }
 
 
-  const currentScore =
-    Math.max(
-      0,
-      Number(data?.score) || 0
-    );
+  if (current) {
 
-
-  current.textContent =
-    `${currentScore} pontos`;
+    current.textContent =
+      data.score;
+  }
 
 
   if (!history.length) {
@@ -1350,73 +1488,71 @@ function renderChart() {
 
     dots.innerHTML = "";
 
-    empty.style.display =
-      "block";
+    if (empty) {
+      empty.style.display =
+        "block";
+    }
 
     return;
   }
 
 
-  empty.style.display =
-    "none";
+  if (empty) {
+    empty.style.display =
+      "none";
+  }
 
 
   const values =
-    history.map(
-      item =>
-        Math.max(
-          0,
+    [...history]
+      .reverse()
+      .map(
+        item =>
           Number(item.after_score) || 0
-        )
-    );
+      );
 
 
-  if (!values.length) {
-    return;
-  }
-
-
-  const allValues =
-    [0, ...values];
-
-
-  const maxValue =
+  const max =
     Math.max(
       10,
-      ...allValues
+      ...values,
+      Number(data.score) || 0
     );
 
 
-  const minX = 35;
-  const maxX = 565;
-
-  const minY = 25;
-  const maxY = 215;
+  const width = 600;
+  const height = 240;
+  const padding = 20;
 
 
   const points =
-    allValues.map(
+    values.map(
       (value, index) => {
 
         const x =
-          minX +
-          (
-            index /
-            Math.max(
-              1,
-              allValues.length - 1
-            )
-          ) *
-          (maxX - minX);
+          values.length === 1
+            ? width / 2
+            : padding +
+              (
+                index /
+                (values.length - 1)
+              ) *
+              (
+                width -
+                padding * 2
+              );
 
 
         const y =
-          maxY -
+          height -
+          padding -
           (
-            value /
-            maxValue
+            value / max
           ) *
-          (maxY - minY);
+          (
+            height -
+            padding * 2
+          );
 
 
         return {
@@ -1424,7 +1560,6 @@ function renderChart() {
           y,
           value
         };
-
       }
     );
 
@@ -1433,7 +1568,11 @@ function renderChart() {
     points
       .map(
         (point, index) =>
-          `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`
+          `${
+            index === 0
+              ? "M"
+              : "L"
+          } ${point.x} ${point.y}`
       )
       .join(" ");
 
@@ -1447,215 +1586,250 @@ function renderChart() {
   dots.innerHTML =
     points
       .map(
-        point =>
-          `<circle cx="${point.x}" cy="${point.y}" r="5"></circle>`
+        point => `
+
+          <circle
+            cx="${point.x}"
+            cy="${point.y}"
+            r="5"
+          >
+            <title>
+              ${point.value} pontos
+            </title>
+          </circle>
+
+        `
       )
       .join("");
-
 }
 
 
-// ==========================================
+// ============================================================
 // ADMINISTRAÇÃO
-// ==========================================
+// ============================================================
 
 function openAdmin() {
 
-  if (!$("#adminModal")) {
+  const modal =
+    $("#adminModal");
+
+  if (!modal) {
     return;
   }
-
-  $("#adminModal")
-    .classList
-    .remove("hidden");
 
 
   adminUnlocked = false;
 
 
-  if ($("#pinArea")) {
-    $("#pinArea")
-      .classList
-      .remove("hidden");
+  updateAdminVisibility();
+
+
+  const pinInput =
+    $("#pinInput");
+
+  if (pinInput) {
+
+    pinInput.value = "";
   }
 
 
-  if ($("#adminForm")) {
-    $("#adminForm")
-      .classList
-      .add("hidden");
-  }
-
-
-  if ($("#pinInput")) {
-
-    $("#pinInput").value = "";
-
-    setTimeout(
-      () => $("#pinInput").focus(),
-      100
-    );
-
-  }
-
-
-  render();
-
+  modal.classList.add(
+    "show"
+  );
 }
 
 
 function closeAdmin() {
 
+  const modal =
+    $("#adminModal");
+
+
   adminUnlocked = false;
 
 
-  if ($("#adminModal")) {
+  if (modal) {
 
-    $("#adminModal")
-      .classList
-      .add("hidden");
-
+    modal.classList.remove(
+      "show"
+    );
   }
 
 
-  if ($("#pinInput")) {
-    $("#pinInput").value = "";
-  }
-
-
-  render();
-
+  updateAdminVisibility();
 }
 
 
-// ==========================================
-// DESBLOQUEAR ADMIN
-// ==========================================
-
 function unlockAdmin() {
 
-  if (!data) {
+  const pinInput =
+    $("#pinInput");
+
+
+  if (!pinInput) {
     return;
   }
 
 
   const enteredPin =
-    $("#pinInput")
-      ? $("#pinInput").value.trim()
-      : "";
+    pinInput.value.trim();
 
 
   if (
     enteredPin &&
-    enteredPin ===
-      String(data.pin)
+    enteredPin === data.pin
   ) {
 
     adminUnlocked = true;
 
 
-    if ($("#pinArea")) {
-      $("#pinArea")
-        .classList
-        .add("hidden");
-    }
-
-
-    if ($("#adminForm")) {
-      $("#adminForm")
-        .classList
-        .remove("hidden");
-    }
-
+    updateAdminVisibility();
 
     loadAdmin();
 
 
-    render();
-
+    alert(
+      "Administração desbloqueada."
+    );
 
   } else {
 
     alert(
       "PIN incorreto."
     );
-
   }
-
 }
 
 
-// ==========================================
-// CARREGAR DADOS NO ADMIN
-// ==========================================
+// ============================================================
+// ADMIN VISIBILIDADE
+// ============================================================
+
+function updateAdminVisibility() {
+
+  const pinArea =
+    $("#pinArea");
+
+  const adminForm =
+    $("#adminForm");
+
+
+  if (adminUnlocked) {
+
+    if (pinArea) {
+      pinArea.style.display =
+        "none";
+    }
+
+    if (adminForm) {
+      adminForm.style.display =
+        "block";
+    }
+
+  } else {
+
+    if (pinArea) {
+      pinArea.style.display =
+        "block";
+    }
+
+    if (adminForm) {
+      adminForm.style.display =
+        "none";
+    }
+  }
+
+
+  // MUITO IMPORTANTE:
+  // As secções Ganhar pontos e
+  // Retirar pontos aparecem sempre.
+  // Apenas os botões ficam bloqueados
+  // quando não estamos na administração.
+
+  renderActions();
+}
+
+
+// ============================================================
+// CARREGAR ADMIN
+// ============================================================
 
 function loadAdmin() {
 
-  if (!adminUnlocked) {
-    return;
-  }
+  const classInput =
+    $("#classInput");
+
+  const newPinInput =
+    $("#newPinInput");
 
 
-  if ($("#classInput")) {
+  if (classInput) {
 
-    $("#classInput").value =
+    classInput.value =
       data.className || "";
-
   }
 
 
-  // IMPORTANTE:
-  // Nunca mostramos o PIN atual.
+  if (newPinInput) {
 
-  if ($("#newPinInput")) {
-
-    $("#newPinInput").value = "";
-
-    $("#newPinInput").placeholder =
-      "Deixe vazio para manter o PIN atual";
-
+    newPinInput.value = "";
   }
 
 
   renderLevelInputs();
-
 }
 
 
-// ==========================================
-// CAMPOS DOS PRÉMIOS
-// ==========================================
+// ============================================================
+// INPUTS DOS PRÉMIOS
+// ============================================================
 
 function renderLevelInputs() {
 
   const container =
     $("#levelInputs");
 
-  if (!container || !data) {
+  if (!container) {
     return;
   }
 
 
+  const levels =
+    normaliseLevels(
+      data.levels
+    );
+
+
   container.innerHTML =
-    data.levels
+    levels
       .map(
         (level, index) => `
 
-          <div class="levelRow">
+          <div class="levelInput">
 
             <input
               type="text"
-              data-level-name="${index}"
+              class="levelName"
+              data-level="${index}"
               value="${escapeHtml(level.name)}"
               placeholder="Nome do prémio"
             >
 
             <input
               type="number"
-              data-level-points="${index}"
+              class="levelPoints"
+              data-level="${index}"
               value="${Number(level.points)}"
               min="0"
               placeholder="Pontos"
+            >
+
+            <input
+              type="text"
+              class="levelEmoji"
+              data-level="${index}"
+              value="${escapeHtml(level.emoji)}"
+              placeholder="Emoji"
             >
 
           </div>
@@ -1663,193 +1837,180 @@ function renderLevelInputs() {
         `
       )
       .join("");
-
 }
 
 
-// ==========================================
+// ============================================================
 // GUARDAR ADMIN
-// ==========================================
+// ============================================================
 
-async function saveAdminSettings(
-  event
-) {
-
-  event.preventDefault();
-
+async function saveAdminSettings() {
 
   if (!adminUnlocked) {
 
     alert(
-      "🔒 A área de administração está bloqueada."
+      "Entra primeiro na Administração."
     );
 
     return;
   }
 
 
-  const className =
-    $("#classInput")
-      ? $("#classInput").value.trim()
-      : "";
+  const classInput =
+    $("#classInput");
+
+  const newPinInput =
+    $("#newPinInput");
 
 
-  if (className) {
-    data.className =
-      className;
+  if (classInput) {
+
+    const name =
+      classInput.value.trim();
+
+    if (name) {
+      data.className =
+        name;
+    }
   }
 
 
-  // PIN:
-  // só muda se escrever um novo.
+  if (newPinInput) {
 
-  const newPin =
-    $("#newPinInput")
-      ? $("#newPinInput").value.trim()
-      : "";
+    const pin =
+      newPinInput.value.trim();
 
-
-  if (newPin) {
-    data.pin = newPin;
+    if (pin) {
+      data.pin =
+        pin;
+    }
   }
 
 
-  // Guardar prémios
-
-  data.levels =
-    data.levels.map(
-      (level, index) => {
-
-        const nameInput =
-          document.querySelector(
-            `[data-level-name="${index}"]`
-          );
-
-
-        const pointsInput =
-          document.querySelector(
-            `[data-level-points="${index}"]`
-          );
-
-
-        return {
-
-          name:
-            nameInput
-              ? nameInput.value.trim()
-              : level.name,
-
-          points:
-            pointsInput
-              ? Math.max(
-                  0,
-                  Number(
-                    pointsInput.value
-                  ) || 0
-                )
-              : Number(level.points),
-
-          emoji:
-            level.emoji || "🎁"
-
-        };
-
-      }
+  const names =
+    document.querySelectorAll(
+      ".levelName"
     );
 
+  const points =
+    document.querySelectorAll(
+      ".levelPoints"
+    );
+
+  const emojis =
+    document.querySelectorAll(
+      ".levelEmoji"
+    );
+
+
+  const levels = [];
+
+
+  for (
+    let i = 0;
+    i < names.length;
+    i++
+  ) {
+
+    const name =
+      names[i].value.trim();
+
+
+    const pts =
+      Number(
+        points[i]?.value
+      );
+
+
+    const emoji =
+      emojis[i]?.value.trim() ||
+      "🎁";
+
+
+    if (!name) {
+      continue;
+    }
+
+
+    levels.push({
+
+      name,
+
+      points:
+        Number.isFinite(pts)
+          ? Math.max(
+              0,
+              pts
+            )
+          : 0,
+
+      emoji
+    });
+  }
+
+
+  if (levels.length) {
+
+    data.levels =
+      levels;
+
+  } else {
+
+    data.levels =
+      cloneDefaults().levels;
+  }
+
+
+  data.levels.sort(
+    (a, b) =>
+      Number(a.points) -
+      Number(b.points)
+  );
+
+
+  saveLocalData();
+
+  renderAll();
 
   await saveClassroom();
 
 
-  // Limpa o campo do novo PIN
-
-  if ($("#newPinInput")) {
-    $("#newPinInput").value = "";
-  }
-
-
-  render();
-
-
   alert(
-    "Alterações guardadas."
+    "Definições guardadas."
   );
-
 }
 
 
-// ==========================================
-// VISIBILIDADE DAS AÇÕES
-// ==========================================
+// ============================================================
+// ATUALIZAÇÃO AUTOMÁTICA
+// ============================================================
 
-function updateAdminVisibility() {
+async function refreshFromSupabase() {
 
-  if (!data) {
+  if (!supabase) {
     return;
   }
 
 
-  // Se não estiver desbloqueado,
-  // mostra bloqueio.
+  // Não alterar o ecrã enquanto
+  // o administrador está a trabalhar.
 
-  if (!adminUnlocked) {
-
-    if ($("#positiveActions")) {
-
-      $("#positiveActions").innerHTML =
-        `
-          <div class="adminLocked">
-            🔒 <strong>Área do administrador</strong><br>
-            Entre na Administração para ganhar pontos.
-          </div>
-        `;
-
-    }
-
-
-    if ($("#negativeActions")) {
-
-      $("#negativeActions").innerHTML =
-        `
-          <div class="adminLocked">
-            🔒 <strong>Área do administrador</strong><br>
-            Entre na Administração para retirar pontos.
-          </div>
-        `;
-
-    }
-
-  } else {
-
-    renderActions();
-
-  }
-
-}
-
-
-// ==========================================
-// SINCRONIZAÇÃO
-// ==========================================
-
-async function refreshFromSupabase() {
-
-  if (
-    !supabaseClient ||
-    !classroomId
-  ) {
+  if (adminUnlocked) {
     return;
   }
 
 
   try {
 
-    const { data: remote, error } =
-      await supabaseClient
+    const {
+      data: remote,
+      error
+    } =
+      await supabase
         .from("classrooms")
         .select("*")
-        .eq("id", classroomId)
-        .single();
+        .limit(1)
+        .maybeSingle();
 
 
     if (error || !remote) {
@@ -1857,228 +2018,274 @@ async function refreshFromSupabase() {
     }
 
 
-    data.className =
-      remote.name ||
-      data.className;
+    data = {
 
+      className:
+        remote.name ||
+        DEFAULT_DATA.className,
 
-    data.score =
-      Math.max(
-        0,
-        Number(remote.score) || 0
-      );
+      pin:
+        remote.pin ||
+        DEFAULT_DATA.pin,
 
+      score:
+        Math.max(
+          0,
+          Number(remote.score) || 0
+        ),
 
-    data.pin =
-      remote.pin ||
-      data.pin;
+      levels:
+        normaliseLevels(
+          remote.levels
+        ),
 
-
-    if (Array.isArray(remote.levels)) {
-      data.levels =
-        remote.levels;
-    }
-
-
-    if (Array.isArray(remote.actions)) {
-      data.actions =
-        remote.actions;
-    }
+      actions:
+        normaliseActions(
+          remote.actions
+        )
+    };
 
 
     saveLocalData();
 
-    render();
+    renderAll();
 
   } catch (error) {
 
     console.error(
-      "Erro na sincronização:",
+      "Erro de atualização:",
       error
     );
-
   }
-
 }
 
 
-// ==========================================
+// ============================================================
 // EVENTOS
-// ==========================================
+// ============================================================
 
 function setupEvents() {
 
-  // Abrir administração
+  const adminBtn =
+    $("#adminBtn");
 
-  if ($("#adminBtn")) {
+  if (adminBtn) {
 
-    $("#adminBtn").addEventListener(
+    adminBtn.addEventListener(
       "click",
       openAdmin
     );
-
   }
 
 
-  // Fechar administração
+  const closeAdminBtn =
+    $("#closeAdmin");
 
-  if ($("#closeAdmin")) {
+  if (closeAdminBtn) {
 
-    $("#closeAdmin").addEventListener(
+    closeAdminBtn.addEventListener(
       "click",
       closeAdmin
     );
-
   }
 
 
-  // Entrar
+  const unlockBtn =
+    $("#unlockBtn");
 
-  if ($("#unlockBtn")) {
+  if (unlockBtn) {
 
-    $("#unlockBtn").addEventListener(
+    unlockBtn.addEventListener(
       "click",
       unlockAdmin
     );
-
   }
 
 
-  // Enter no PIN
+  const pinInput =
+    $("#pinInput");
 
-  if ($("#pinInput")) {
+  if (pinInput) {
 
-    $("#pinInput").addEventListener(
+    pinInput.addEventListener(
       "keydown",
-      function (event) {
+      event => {
 
-        if (event.key === "Enter") {
-
-          event.preventDefault();
+        if (
+          event.key === "Enter"
+        ) {
 
           unlockAdmin();
-
         }
-
       }
     );
-
   }
 
 
-  // Guardar administração
+  const saveBtn =
+    $("#saveAdmin");
 
-  if ($("#adminForm")) {
+  if (saveBtn) {
 
-    $("#adminForm").addEventListener(
-      "submit",
+    saveBtn.addEventListener(
+      "click",
       saveAdminSettings
     );
-
   }
 
 
-  // Apagar histórico
+  const resetBtn =
+    $("#resetBtn");
 
-  if ($("#clearHistory")) {
+  if (resetBtn) {
 
-    $("#clearHistory").addEventListener(
+    resetBtn.addEventListener(
+      "click",
+      resetScore
+    );
+  }
+
+
+  const logoutBtn =
+    $("#adminLogout");
+
+  if (logoutBtn) {
+
+    logoutBtn.addEventListener(
+      "click",
+      closeAdmin
+    );
+  }
+
+
+  const clearBtn =
+    $("#clearHistory");
+
+  if (clearBtn) {
+
+    clearBtn.addEventListener(
       "click",
       clearHistory
     );
-
   }
 
 
-  // Repor dados
+  // ==========================================================
+  // BOTÕES GANHAR / RETIRAR PONTOS
+  // ==========================================================
 
-  if ($("#resetBtn")) {
+  document.addEventListener(
+    "click",
+    event => {
 
-    $("#resetBtn").addEventListener(
+      const button =
+        event.target.closest(
+          "[data-action-index]"
+        );
+
+
+      if (!button) {
+        return;
+      }
+
+
+      // Se não estiver na administração,
+      // não deixa alterar pontos.
+
+      if (!adminUnlocked) {
+
+        alert(
+          "Entra primeiro na Administração para alterar os pontos."
+        );
+
+        return;
+      }
+
+
+      const index =
+        Number(
+          button.dataset.actionIndex
+        );
+
+
+      if (
+        !Number.isInteger(index)
+      ) {
+        return;
+      }
+
+
+      const action =
+        data.actions[index];
+
+
+      if (!action) {
+        return;
+      }
+
+
+      changePoints(action);
+    }
+  );
+
+
+  const undoBtn =
+    $("#undoBtn");
+
+  if (undoBtn) {
+
+    undoBtn.addEventListener(
       "click",
-      resetData
+      undo
     );
-
   }
 
 
-  // Fechar clicando fora
+  const modal =
+    $("#adminModal");
 
-  if ($("#adminModal")) {
+  if (modal) {
 
-    $("#adminModal").addEventListener(
+    modal.addEventListener(
       "click",
-      function (event) {
+      event => {
 
         if (
-          event.target ===
-          $("#adminModal")
+          event.target === modal
         ) {
+
           closeAdmin();
         }
-
       }
     );
-
   }
-
 }
 
 
-// ==========================================
+// ============================================================
 // INICIAR
-// ==========================================
+// ============================================================
 
 async function init() {
-
-  data =
-    loadLocalData();
-
-
-  // Garantir pontuação nunca negativa
-
-  data.score =
-    Math.max(
-      0,
-      Number(data.score) || 0
-    );
-
 
   initSupabase();
 
   setupEvents();
-  setupActionClicks();
-  setupUndoClicks();
 
-  render();
+  data =
+    loadLocalData();
 
+  renderAll();
 
-  // Tentar carregar do Supabase
+  await loadClassroom();
 
-  if (supabaseClient) {
-
-    await loadClassroom();
-
-    render();
-
-    await loadHistory();
-
-  }
-
-
-  // Sincronização periódica
 
   setInterval(
     refreshFromSupabase,
     5000
   );
-
 }
 
-
-// ==========================================
-// ARRANQUE
-// ==========================================
 
 document.addEventListener(
   "DOMContentLoaded",
