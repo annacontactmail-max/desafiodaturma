@@ -1,9 +1,7 @@
-```html
 <!DOCTYPE html>
 <html lang="pt-PT">
 
 <head>
-
   <meta charset="UTF-8">
 
   <meta
@@ -18,47 +16,43 @@
 
   <title>Desafio da Turma</title>
 
-
   <style>
 
     * {
       box-sizing: border-box;
     }
 
+    html {
+      width: 100%;
+      min-height: 100%;
+    }
 
     body {
       margin: 0;
-      font-family:
-        Arial,
-        Helvetica,
-        sans-serif;
-      background:
-        linear-gradient(
-          180deg,
-          #f8fafc 0%,
-          #eef2ff 100%
-        );
-      color: #334155;
+      width: 100%;
       min-height: 100vh;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(
+        180deg,
+        #f8fafc 0%,
+        #eef2ff 100%
+      );
+      color: #334155;
+      overflow-x: hidden;
     }
-
 
     button,
     input {
       font: inherit;
     }
 
-
     button {
       cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
     }
 
-
     .container {
-      width: min(
-        1100px,
-        calc(100% - 32px)
-      );
+      width: min(1080px, calc(100% - 32px));
       margin: 0 auto;
     }
 
@@ -68,9 +62,8 @@
     ========================= */
 
     header {
-      padding: 24px 0 18px;
+      padding: 20px 0 16px;
     }
-
 
     .headerBox {
       display: flex;
@@ -79,35 +72,32 @@
       gap: 16px;
     }
 
-
     .brand {
       display: flex;
       align-items: center;
       gap: 12px;
+      min-width: 0;
     }
-
 
     .brandIcon {
       width: 48px;
       height: 48px;
+      min-width: 48px;
       border-radius: 16px;
       display: flex;
       align-items: center;
       justify-content: center;
       background: white;
-      box-shadow:
-        0 8px 25px
-        rgba(15, 23, 42, 0.08);
+      box-shadow: 0 8px 25px rgba(15, 23, 42, 0.08);
       font-size: 25px;
     }
-
 
     h1 {
       margin: 0;
       font-size: 25px;
+      line-height: 1.2;
       color: #334155;
     }
-
 
     .subtitle {
       margin-top: 4px;
@@ -115,19 +105,16 @@
       font-size: 14px;
     }
 
-
     #adminBtn {
+      flex-shrink: 0;
       border: 0;
       background: white;
       color: #475569;
       padding: 11px 16px;
       border-radius: 13px;
-      box-shadow:
-        0 6px 20px
-        rgba(15, 23, 42, 0.07);
+      box-shadow: 0 6px 20px rgba(15, 23, 42, 0.07);
       font-weight: 600;
     }
-
 
     #adminBtn:hover {
       background: #f1f5f9;
@@ -140,39 +127,28 @@
 
     .grid {
       display: grid;
-      grid-template-columns:
-        minmax(0, 1.15fr)
-        minmax(0, 0.85fr);
-      gap: 20px;
-      padding-bottom: 40px;
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+      gap: 18px;
+      padding-bottom: 35px;
     }
-
 
     .card {
-      background: rgba(
-        255,
-        255,
-        255,
-        0.9
-      );
-      border-radius: 24px;
+      min-width: 0;
+      background: rgba(255, 255, 255, 0.94);
+      border-radius: 22px;
       padding: 22px;
-      box-shadow:
-        0 12px 35px
-        rgba(15, 23, 42, 0.07);
-      border: 1px solid
-        rgba(226, 232, 240, 0.8);
+      box-shadow: 0 12px 35px rgba(15, 23, 42, 0.07);
+      border: 1px solid rgba(226, 232, 240, 0.8);
     }
-
 
     .full {
       grid-column: 1 / -1;
     }
 
-
     .cardTitle {
       margin: 0 0 15px;
       font-size: 18px;
+      line-height: 1.3;
       color: #475569;
     }
 
@@ -183,9 +159,8 @@
 
     .scoreCard {
       text-align: center;
-      padding: 30px 24px;
+      padding: 28px 24px 25px;
     }
-
 
     .scoreLabel {
       font-size: 14px;
@@ -195,7 +170,6 @@
       letter-spacing: 0.08em;
     }
 
-
     #score {
       font-size: 76px;
       line-height: 1;
@@ -204,14 +178,13 @@
       color: #475569;
     }
 
-
     .scorePoints {
       color: #94a3b8;
       font-size: 15px;
     }
 
-
     .progress {
+      width: 100%;
       height: 18px;
       background: #e2e8f0;
       border-radius: 999px;
@@ -219,32 +192,24 @@
       margin-top: 25px;
     }
 
-
     #progressBar {
       width: 0%;
       height: 100%;
       border-radius: inherit;
-      background:
-        linear-gradient(
-          90deg,
-          #a5b4fc,
-          #c4b5fd
-        );
-      transition:
-        width 0.5s ease;
+      background: linear-gradient(
+        90deg,
+        #a5b4fc,
+        #c4b5fd
+      );
+      transition: width 0.5s ease;
     }
-
 
     #nextText {
       margin-top: 13px;
       color: #64748b;
       font-size: 14px;
+      line-height: 1.4;
     }
-
-
-    /* =========================
-       CELEBRAÇÃO
-    ========================= */
 
     #celebration {
       margin-top: 18px;
@@ -253,8 +218,8 @@
       background: #fef3c7;
       color: #92400e;
       font-weight: 700;
+      line-height: 1.4;
     }
-
 
     .hidden {
       display: none !important;
@@ -270,28 +235,26 @@
       gap: 10px;
     }
 
-
     .level {
       display: flex;
       align-items: center;
-      gap: 14px;
-      padding: 14px;
-      border-radius: 17px;
+      gap: 12px;
+      padding: 12px;
+      border-radius: 16px;
       background: #f8fafc;
-      border: 1px solid
-        #e2e8f0;
+      border: 1px solid #e2e8f0;
+      min-width: 0;
     }
-
 
     .level.unlocked {
       background: #f5f3ff;
       border-color: #ddd6fe;
     }
 
-
     .emoji {
       width: 42px;
       height: 42px;
+      min-width: 42px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -300,17 +263,16 @@
       font-size: 22px;
     }
 
-
     .info {
       flex: 1;
+      min-width: 0;
     }
-
 
     .name {
       font-weight: 700;
       color: #475569;
+      overflow-wrap: anywhere;
     }
-
 
     .pts {
       margin-top: 3px;
@@ -318,8 +280,8 @@
       color: #94a3b8;
     }
 
-
     .badge {
+      flex-shrink: 0;
       padding: 6px 9px;
       border-radius: 999px;
       background: #dcfce7;
@@ -337,11 +299,9 @@
       margin-bottom: 22px;
     }
 
-
     .actionSection:last-child {
       margin-bottom: 0;
     }
-
 
     .actionHeading {
       font-size: 14px;
@@ -350,78 +310,68 @@
       margin-bottom: 9px;
     }
 
-
     .actions {
       display: grid;
-      grid-template-columns:
-        repeat(
-          auto-fit,
-          minmax(220px, 1fr)
-        );
+      grid-template-columns: repeat(
+        auto-fit,
+        minmax(220px, 1fr)
+      );
       gap: 10px;
     }
 
-
     .action {
+      width: 100%;
+      min-width: 0;
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 12px;
-      border: 0;
+      border: 1px solid #e2e8f0;
       padding: 15px;
       border-radius: 16px;
       background: #f8fafc;
       color: #475569;
       text-align: left;
-      border: 1px solid
-        #e2e8f0;
       transition:
         transform 0.15s ease,
         box-shadow 0.15s ease;
     }
 
-
     .action:hover {
       transform: translateY(-2px);
-      box-shadow:
-        0 7px 18px
-        rgba(15, 23, 42, 0.08);
+      box-shadow: 0 7px 18px rgba(15, 23, 42, 0.08);
     }
-
 
     .action.positive {
       background: #f0fdf4;
       border-color: #bbf7d0;
     }
 
-
     .action.negative {
       background: #fff7ed;
       border-color: #fed7aa;
     }
 
-
     .label {
       font-weight: 600;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
     }
 
-
     .value {
+      flex-shrink: 0;
       font-size: 18px;
       font-weight: 800;
       white-space: nowrap;
     }
 
-
     .positive .value {
       color: #15803d;
     }
 
-
     .negative .value {
       color: #c2410c;
     }
-
 
     .adminLocked {
       padding: 18px;
@@ -431,10 +381,9 @@
       color: #64748b;
       text-align: center;
       font-size: 14px;
-      border: 1px dashed
-        #cbd5e1;
+      line-height: 1.4;
+      border: 1px dashed #cbd5e1;
     }
-
 
     .adminLocked strong {
       color: #475569;
@@ -448,15 +397,16 @@
     .chartWrap {
       width: 100%;
       overflow-x: auto;
+      overflow-y: hidden;
+      border-radius: 14px;
     }
-
 
     #progressChart {
+      display: block;
       width: 100%;
-      min-width: 500px;
+      min-width: 0;
       height: 250px;
     }
-
 
     .chartHeader {
       display: flex;
@@ -466,13 +416,16 @@
       margin-bottom: 8px;
     }
 
+    .chartHeader .cardTitle {
+      margin-bottom: 0;
+    }
 
     #chartCurrentScore {
+      flex-shrink: 0;
       font-size: 14px;
       font-weight: 700;
       color: #6366f1;
     }
-
 
     #chartLine {
       fill: none;
@@ -482,24 +435,22 @@
       stroke-linejoin: round;
     }
 
-
     #chartDots circle {
       fill: #8b5cf6;
       stroke: white;
       stroke-width: 3;
     }
 
-
     .chartGrid {
       stroke: #e2e8f0;
       stroke-width: 1;
     }
 
-
     #chartEmpty {
       text-align: center;
       color: #94a3b8;
       font-size: 14px;
+      line-height: 1.4;
       margin-top: -25px;
     }
 
@@ -511,51 +462,44 @@
     .history {
       display: grid;
       gap: 8px;
+      min-width: 0;
     }
-
 
     .historyItem {
       display: grid;
-      grid-template-columns:
-        105px
-        1fr
-        55px
-        40px;
+      grid-template-columns: 105px minmax(0, 1fr) 55px 40px;
       gap: 10px;
       align-items: center;
       padding: 12px 13px;
       border-radius: 14px;
       background: #f8fafc;
+      min-width: 0;
     }
-
 
     .when {
       font-size: 12px;
       color: #94a3b8;
     }
 
-
     .desc {
       font-weight: 600;
       color: #475569;
+      overflow-wrap: anywhere;
     }
-
 
     .delta {
       font-weight: 800;
       text-align: right;
+      white-space: nowrap;
     }
-
 
     .delta.pos {
       color: #15803d;
     }
 
-
     .delta.neg {
       color: #dc2626;
     }
-
 
     .undo {
       width: 32px;
@@ -566,7 +510,6 @@
       color: #64748b;
       font-size: 18px;
     }
-
 
     .undo:hover {
       background: #e2e8f0;
@@ -581,40 +524,26 @@
       position: fixed;
       inset: 0;
       z-index: 1000;
-      background:
-        rgba(
-          15,
-          23,
-          42,
-          0.45
-        );
+      background: rgba(15, 23, 42, 0.45);
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 20px;
+      padding: 16px;
     }
-
 
     .modal.hidden {
       display: none;
     }
 
-
     .modalBox {
-      width: min(
-        650px,
-        100%
-      );
-      max-height: 90vh;
+      width: min(650px, 100%);
+      max-height: calc(100vh - 32px);
       overflow-y: auto;
       background: white;
-      border-radius: 25px;
-      padding: 25px;
-      box-shadow:
-        0 25px 70px
-        rgba(15, 23, 42, 0.2);
+      border-radius: 22px;
+      padding: 23px;
+      box-shadow: 0 25px 70px rgba(15, 23, 42, 0.2);
     }
-
 
     .modalHeader {
       display: flex;
@@ -624,14 +553,13 @@
       margin-bottom: 20px;
     }
 
-
     .modalHeader h2 {
       margin: 0;
       color: #475569;
     }
 
-
     #closeAdmin {
+      flex-shrink: 0;
       border: 0;
       background: #f1f5f9;
       width: 38px;
@@ -641,11 +569,9 @@
       color: #64748b;
     }
 
-
     .formGroup {
       margin-bottom: 16px;
     }
-
 
     .formGroup label {
       display: block;
@@ -655,29 +581,18 @@
       color: #64748b;
     }
 
-
     .formGroup input {
       width: 100%;
       padding: 12px 13px;
-      border: 1px solid
-        #cbd5e1;
+      border: 1px solid #cbd5e1;
       border-radius: 12px;
       outline: none;
     }
 
-
     .formGroup input:focus {
       border-color: #a78bfa;
-      box-shadow:
-        0 0 0 3px
-        rgba(
-          167,
-          139,
-          250,
-          0.15
-        );
+      box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
     }
-
 
     .primaryBtn {
       border: 0;
@@ -688,11 +603,9 @@
       font-weight: 700;
     }
 
-
     .primaryBtn:hover {
       background: #7c3aed;
     }
-
 
     .secondaryBtn {
       border: 0;
@@ -703,8 +616,8 @@
       font-weight: 700;
     }
 
-
     .dangerBtn {
+      width: 100%;
       border: 0;
       padding: 12px 18px;
       border-radius: 13px;
@@ -714,25 +627,20 @@
       margin-top: 15px;
     }
 
-
     .levelRow {
       display: grid;
-      grid-template-columns:
-        1fr
-        120px;
+      grid-template-columns: minmax(0, 1fr) 120px;
       gap: 10px;
       margin-bottom: 10px;
     }
 
-
     .levelRow input {
       width: 100%;
+      min-width: 0;
       padding: 10px;
-      border: 1px solid
-        #cbd5e1;
+      border: 1px solid #cbd5e1;
       border-radius: 10px;
     }
-
 
     .adminHint {
       padding: 12px;
@@ -740,12 +648,13 @@
       background: #f8fafc;
       color: #64748b;
       font-size: 13px;
+      line-height: 1.45;
       margin-bottom: 15px;
     }
 
 
     /* =========================
-       RESPONSIVO
+       TABLET
     ========================= */
 
     @media (max-width: 800px) {
@@ -754,86 +663,236 @@
         grid-template-columns: 1fr;
       }
 
-
       .full {
         grid-column: auto;
       }
 
-
-      .headerBox {
-        align-items: flex-start;
-      }
-
-
       #score {
-        font-size: 62px;
+        font-size: 64px;
       }
-
 
       .historyItem {
-        grid-template-columns:
-          85px
-          1fr
-          50px
-          35px;
+        grid-template-columns: 85px minmax(0, 1fr) 50px 35px;
       }
 
     }
 
 
-    @media (max-width: 520px) {
+    /* =========================
+       TELEMÓVEL
+    ========================= */
+
+    @media (max-width: 560px) {
 
       .container {
-        width:
-          calc(
-            100% - 20px
-          );
+        width: calc(100% - 20px);
       }
 
-
-      .card {
-        padding: 17px;
-        border-radius: 19px;
+      header {
+        padding-top: 14px;
+        padding-bottom: 12px;
       }
-
 
       .headerBox {
-        flex-wrap: wrap;
+        align-items: center;
       }
 
+      .brand {
+        gap: 9px;
+      }
+
+      .brandIcon {
+        width: 43px;
+        height: 43px;
+        min-width: 43px;
+        border-radius: 14px;
+        font-size: 22px;
+      }
+
+      h1 {
+        font-size: 20px;
+      }
+
+      .subtitle {
+        font-size: 12px;
+      }
 
       #adminBtn {
-        margin-left: auto;
+        padding: 9px 11px;
+        font-size: 12px;
       }
 
+      .grid {
+        gap: 12px;
+      }
+
+      .card {
+        padding: 16px;
+        border-radius: 18px;
+      }
+
+      .scoreCard {
+        padding: 23px 16px 20px;
+      }
+
+      .scoreLabel {
+        font-size: 12px;
+      }
+
+      #score {
+        font-size: 58px;
+        margin: 11px 0 6px;
+      }
+
+      .progress {
+        height: 15px;
+        margin-top: 20px;
+      }
+
+      #nextText {
+        font-size: 13px;
+      }
+
+      .cardTitle {
+        font-size: 17px;
+      }
 
       .level {
-        padding: 11px;
+        padding: 10px;
+        gap: 9px;
       }
 
+      .emoji {
+        width: 38px;
+        height: 38px;
+        min-width: 38px;
+        font-size: 20px;
+      }
+
+      .name {
+        font-size: 14px;
+      }
+
+      .pts {
+        font-size: 12px;
+      }
 
       .badge {
         display: none;
       }
 
-
-      .historyItem {
-        grid-template-columns:
-          75px
-          1fr
-          45px
-          32px;
-        gap: 6px;
+      .actions {
+        grid-template-columns: 1fr;
       }
 
+      .action {
+        padding: 13px;
+      }
+
+      .label {
+        font-size: 14px;
+      }
+
+      .value {
+        font-size: 17px;
+      }
+
+      .chartHeader {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      #progressChart {
+        height: 210px;
+      }
+
+      .chartWrap {
+        overflow-x: hidden;
+      }
+
+      #chartEmpty {
+        margin-top: -18px;
+        font-size: 12px;
+      }
+
+      .historyItem {
+        grid-template-columns: 1fr auto auto;
+        gap: 8px;
+        padding: 10px;
+      }
 
       .when {
+        grid-column: 1 / -1;
         font-size: 10px;
       }
 
-
       .desc {
         font-size: 13px;
+      }
+
+      .delta {
+        font-size: 14px;
+      }
+
+      .undo {
+        width: 30px;
+        height: 30px;
+      }
+
+      .modal {
+        padding: 10px;
+        align-items: flex-start;
+        padding-top: 20px;
+      }
+
+      .modalBox {
+        max-height: calc(100vh - 30px);
+        padding: 18px;
+        border-radius: 19px;
+      }
+
+      .levelRow {
+        grid-template-columns: 1fr;
+      }
+
+      .primaryBtn,
+      .secondaryBtn {
+        width: 100%;
+      }
+
+    }
+
+
+    /* =========================
+       TELEMÓVEL MUITO PEQUENO
+    ========================= */
+
+    @media (max-width: 380px) {
+
+      .container {
+        width: calc(100% - 14px);
+      }
+
+      .headerBox {
+        align-items: flex-start;
+      }
+
+      .brand {
+        max-width: 55%;
+      }
+
+      #adminBtn {
+        font-size: 11px;
+        padding: 8px 9px;
+      }
+
+      #score {
+        font-size: 52px;
+      }
+
+      .card {
+        padding: 14px;
       }
 
     }
@@ -846,9 +905,7 @@
 <body>
 
 
-  <!-- =========================
-       CABEÇALHO
-  ========================== -->
+  <!-- CABEÇALHO -->
 
   <header>
 
@@ -897,9 +954,7 @@
     <div class="grid">
 
 
-      <!-- =========================
-           PONTUAÇÃO
-      ========================== -->
+      <!-- PONTUAÇÃO -->
 
       <section class="card scoreCard">
 
@@ -907,30 +962,23 @@
           Pontos da turma
         </div>
 
-
         <div id="score">
           0
         </div>
-
 
         <div class="scorePoints">
           pontos
         </div>
 
-
         <div class="progress">
 
-          <div
-            id="progressBar"
-          ></div>
+          <div id="progressBar"></div>
 
         </div>
-
 
         <div id="nextText">
           Próximo objetivo
         </div>
-
 
         <div
           id="celebration"
@@ -941,16 +989,13 @@
 
 
 
-      <!-- =========================
-           NÍVEIS
-      ========================== -->
+      <!-- NÍVEIS -->
 
       <section class="card">
 
         <h2 class="cardTitle">
           🎁 Níveis e prémios
         </h2>
-
 
         <div
           id="levels"
@@ -961,9 +1006,7 @@
 
 
 
-      <!-- =========================
-           AÇÕES
-      ========================== -->
+      <!-- AÇÕES -->
 
       <section class="card full">
 
@@ -971,13 +1014,11 @@
           ⭐ Pontuação
         </h2>
 
-
         <div class="actionSection">
 
           <div class="actionHeading">
             🟢 Ganhar pontos
           </div>
-
 
           <div
             id="positiveActions"
@@ -993,7 +1034,6 @@
             🔴 Retirar pontos
           </div>
 
-
           <div
             id="negativeActions"
             class="actions"
@@ -1005,9 +1045,7 @@
 
 
 
-      <!-- =========================
-           GRÁFICO
-      ========================== -->
+      <!-- GRÁFICO -->
 
       <section class="card full">
 
@@ -1017,10 +1055,7 @@
             📈 Progresso da turma
           </h2>
 
-
-          <span
-            id="chartCurrentScore"
-          >
+          <span id="chartCurrentScore">
             0 pontos
           </span>
 
@@ -1034,8 +1069,6 @@
             viewBox="0 0 600 250"
             preserveAspectRatio="none"
           >
-
-            <!-- linhas de fundo -->
 
             <line
               class="chartGrid"
@@ -1069,29 +1102,19 @@
               y2="195"
             />
 
-
-            <!-- linha do gráfico -->
-
             <path
               id="chartLine"
               d=""
             ></path>
 
-
-            <!-- pontos -->
-
-            <g
-              id="chartDots"
-            ></g>
+            <g id="chartDots"></g>
 
           </svg>
 
         </div>
 
 
-        <div
-          id="chartEmpty"
-        >
+        <div id="chartEmpty">
           O gráfico será preenchido à medida que a turma ganhar ou perder pontos.
         </div>
 
@@ -1099,9 +1122,7 @@
 
 
 
-      <!-- =========================
-           HISTÓRICO
-      ========================== -->
+      <!-- HISTÓRICO -->
 
       <section class="card full">
 
@@ -1109,12 +1130,10 @@
           🕘 Histórico
         </h2>
 
-
         <div
           id="history"
           class="history"
         ></div>
-
 
         <button
           id="clearHistory"
@@ -1134,9 +1153,7 @@
 
 
 
-  <!-- =========================
-       MODAL ADMINISTRAÇÃO
-  ========================== -->
+  <!-- MODAL ADMINISTRAÇÃO -->
 
   <div
     id="adminModal"
@@ -1145,13 +1162,11 @@
 
     <div class="modalBox">
 
-
       <div class="modalHeader">
 
         <h2>
           🔐 Administração
         </h2>
-
 
         <button
           id="closeAdmin"
@@ -1164,9 +1179,7 @@
 
 
 
-      <!-- =========================
-           PIN
-      ========================== -->
+      <!-- PIN -->
 
       <div id="pinArea">
 
@@ -1175,13 +1188,11 @@
           Introduza o PIN para gerir a pontuação.
         </div>
 
-
         <div class="formGroup">
 
           <label for="pinInput">
             PIN
           </label>
-
 
           <input
             id="pinInput"
@@ -1192,7 +1203,6 @@
           >
 
         </div>
-
 
         <button
           id="unlockBtn"
@@ -1206,9 +1216,7 @@
 
 
 
-      <!-- =========================
-           FORMULÁRIO ADMIN
-      ========================== -->
+      <!-- FORMULÁRIO ADMIN -->
 
       <form
         id="adminForm"
@@ -1216,11 +1224,9 @@
       >
 
         <div class="adminHint">
-          🔓 Administração desbloqueada.
+          🔓 Administração desbloqueada.<br>
           Aqui podes alterar o nome da turma,
           o PIN e os prémios.
-          Os botões de pontuação ficam disponíveis
-          enquanto esta sessão estiver desbloqueada.
         </div>
 
 
@@ -1229,7 +1235,6 @@
           <label for="classInput">
             Nome da turma
           </label>
-
 
           <input
             id="classInput"
@@ -1246,7 +1251,6 @@
             PIN de administrador
           </label>
 
-
           <input
             id="newPinInput"
             type="password"
@@ -1262,10 +1266,7 @@
           🎁 Prémios
         </h3>
 
-
-        <div
-          id="levelInputs"
-        ></div>
+        <div id="levelInputs"></div>
 
 
         <div
@@ -1283,7 +1284,6 @@
           >
             💾 Guardar alterações
           </button>
-
 
           <button
             id="resetBtn"
@@ -1312,55 +1312,32 @@
 
 
 
-  <!-- =========================
-       SCRIPTS
-  ========================== -->
+  <!-- SCRIPTS -->
 
   <script src="config.js"></script>
 
-
-  <script
-    src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
-  ></script>
-
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <script src="app.js"></script>
 
 
   <script>
 
-    /*
-     * Botão "Sair da Administração".
-     * O app.js controla o estado adminUnlocked.
-     */
-
     const adminLogout =
-      document.getElementById(
-        "adminLogout"
-      );
-
+      document.getElementById("adminLogout");
 
     if (adminLogout) {
 
-      adminLogout.onclick =
-        function() {
+      adminLogout.onclick = function() {
 
-          /*
-           * Fechar a janela.
-           * Ao fechar, o app.js também
-           * volta a bloquear os botões.
-           */
+        const closeAdmin =
+          document.getElementById("closeAdmin");
 
-          const closeAdmin =
-            document.getElementById(
-              "closeAdmin"
-            );
+        if (closeAdmin) {
+          closeAdmin.click();
+        }
 
-          if (closeAdmin) {
-            closeAdmin.click();
-          }
-
-        };
+      };
 
     }
 
@@ -1370,4 +1347,3 @@
 </body>
 
 </html>
-```
