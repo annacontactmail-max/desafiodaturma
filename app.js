@@ -1,984 +1,1681 @@
-<!DOCTYPE html>
-<html lang="pt-PT">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Desafio da Turma</title>
-
-  <style>
-    * {
-      box-sizing: border-box;
+/* =========================================================
+   DESAFIO DA TURMA
+   app.js
+   ========================================================= */
+
+const KEY = "desafioTurmaV2";
+
+const defaultData = {
+  className: "Turma",
+  pin: "1234",
+  score: 0,
+
+  levels: [
+    { points: 20, label: "Sair mais cedo", emoji: "🟦" },
+    { points: 35, label: "Aula livre", emoji: "🟩" },
+    { points: 50, label: "Torneio", emoji: "🟨" },
+    { points: 70, label: "Aula na rua", emoji: "🟧" },
+    { points: 100, label: "Festa 1h", emoji: "🟪" },
+    { points: 130, label: "Festa 2h", emoji: "🏆" }
+  ],
+
+  actions: [
+    {
+      name: "Semana sem ocorrências nem faltas",
+      points: 3,
+      emoji: "🟢"
+    },
+    {
+      name: "Elogio",
+      points: 4,
+      emoji: "⭐"
+    },
+    {
+      name: "Ocorrência",
+      points: -3,
+      emoji: "🔴"
+    },
+    {
+      name: "Falta injustificada",
+      points: -2,
+      emoji: "🟠"
+    },
+    {
+      name: "Falta disciplinar",
+      points: -10,
+      emoji: "🚨"
+    }
+  ]
+};
+
+
+/* =========================================================
+   ESTADO
+   ========================================================= */
+
+let data = loadLocalData();
+let history = [];
+
+let adminUnlocked = false;
+let classroomId = null;
+
+let supabaseClient = null;
+
+
+/* =========================================================
+   ELEMENTOS
+   ========================================================= */
+
+const $ = (selector) => document.querySelector(selector);
+
+
+/* =========================================================
+   SUPABASE
+   ========================================================= */
+
+function initSupabase() {
+  try {
+    if (
+      typeof window.supabase !== "undefined" &&
+      typeof SUPABASE_URL !== "undefined" &&
+      typeof SUPABASE_KEY !== "undefined"
+    ) {
+      supabaseClient = window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_KEY
+      );
+
+      console.log("Supabase ligado.");
+    } else {
+      console.warn(
+        "Supabase não está configurado. A aplicação irá usar armazenamento local."
+      );
     }
+  } catch (error) {
+    console.error("Erro ao iniciar Supabase:", error);
+    supabaseClient = null;
+  }
+}
 
-    html {
-      width: 100%;
-      overflow-x: hidden;
-    }
-
-    body {
-      margin: 0;
-      min-height: 100vh;
-      font-family: Arial, Helvetica, sans-serif;
-      background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
-      color: #25324a;
-      overflow-x: hidden;
-    }
-
-    button,
-    input {
-      font: inherit;
-    }
-
-    .container {
-      width: min(1200px, calc(100% - 32px));
-      margin: 0 auto;
-      padding: 24px 0 50px;
-    }
-
-    /* =========================
-       CABEÇALHO
-    ========================= */
-
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 18px;
-    }
-
-    .title-area {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .title-icon {
-      font-size: 36px;
-    }
-
-    h1 {
-      margin: 0;
-      font-size: clamp(26px, 4vw, 40px);
-      color: #4c3f8f;
-      line-height: 1.05;
-    }
-
-    #classTitle {
-      margin-top: 4px;
-      font-size: 15px;
-      color: #7b8499;
-    }
-
-    .admin-button {
-      border: 0;
-      background: white;
-      color: #51458d;
-      width: 48px;
-      height: 48px;
-      border-radius: 15px;
-      cursor: pointer;
-      font-size: 22px;
-      box-shadow: 0 5px 18px rgba(63, 52, 112, 0.10);
-      transition: transform .2s, box-shadow .2s;
-    }
-
-    .admin-button:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 22px rgba(63, 52, 112, 0.15);
-    }
-
-    /* =========================
-       PONTUAÇÃO EM GRANDE DESTAQUE
-    ========================= */
-
-    .score-card {
-      background: white;
-      border-radius: 28px;
-      padding: 34px 38px 30px;
-      box-shadow: 0 12px 35px rgba(63, 52, 112, 0.10);
-      margin-bottom: 22px;
-      border: 1px solid rgba(125, 110, 190, 0.08);
-      text-align: center;
-    }
-
-    .score-label {
-      margin: 0 0 8px;
-      color: #7b8499;
-      font-size: 16px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: .08em;
-    }
-
-    #score {
-      font-size: clamp(58px, 10vw, 105px);
-      line-height: 1;
-      font-weight: 900;
-      color: #5b4bb7;
-      margin: 5px 0 22px;
-    }
-
-    .points-word {
-      font-size: .28em;
-      vertical-align: middle;
-      font-weight: 800;
-      letter-spacing: 0;
-    }
-
-    .progress-track {
-      width: 100%;
-      height: 25px;
-      background: #eeeafb;
-      border-radius: 999px;
-      overflow: hidden;
-      box-shadow: inset 0 2px 5px rgba(70, 55, 130, 0.08);
-    }
-
-    #progressBar {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #8b7be8, #6552c5);
-      border-radius: 999px;
-      transition: width .5s ease;
-    }
-
-    #nextText {
-      margin: 15px 0 0;
-      font-size: 17px;
-      color: #69738a;
-      font-weight: 600;
-    }
-
-    #celebration {
-      margin-top: 14px;
-      font-size: 20px;
-      font-weight: 800;
-      color: #5b4bb7;
-    }
-
-    /* =========================
-       PRÉMIOS + GRÁFICO
-    ========================= */
-
-    .lower-top {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 22px;
-      margin-bottom: 22px;
-    }
-
-    .card {
-      background: white;
-      border-radius: 24px;
-      padding: 25px;
-      box-shadow: 0 10px 30px rgba(63, 52, 112, 0.08);
-      border: 1px solid rgba(125, 110, 190, 0.07);
-    }
-
-    .card-title {
-      margin: 0 0 20px;
-      font-size: 21px;
-      color: #4c3f8f;
-    }
-
-    /* Prémios */
-
-    #levels {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .level {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 13px 15px;
-      border-radius: 15px;
-      background: #f7f5ff;
-      border: 1px solid #ece8ff;
-      transition: transform .2s, background .2s;
-    }
-
-    .level:hover {
-      transform: translateX(3px);
-    }
-
-    .level.reached {
-      background: #eeeaff;
-      border-color: #dcd5ff;
-    }
-
-    .level-name {
-      font-weight: 700;
-      color: #4c5368;
-    }
-
-    .level-points {
-      white-space: nowrap;
-      font-weight: 800;
-      color: #6658a8;
-      font-size: 14px;
-    }
-
-    /* Gráfico */
-
-    .chart-wrap {
-      position: relative;
-      width: 100%;
-    }
-
-    #progressChart {
-      width: 100%;
-      height: 280px;
-      display: block;
-      overflow: visible;
-    }
-
-    #chartLine {
-      fill: none;
-      stroke: #705cc7;
-      stroke-width: 4;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
 
-    #chartDots circle {
-      fill: #705cc7;
-      stroke: white;
-      stroke-width: 3;
-    }
-
-    .chart-empty {
-      fill: #9299aa;
-      font-size: 14px;
-    }
-
-    #chartCurrentScore {
-      fill: #51458d;
-      font-size: 18px;
-      font-weight: 800;
-    }
-
-    /* =========================
-       AÇÕES
-    ========================= */
-
-    .actions-card {
-      margin-bottom: 22px;
-    }
-
-    .actions-columns {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-    }
-
-    .action-section {
-      padding: 20px;
-      border-radius: 20px;
-    }
-
-    .positive-section {
-      background: #f0faf4;
-      border: 1px solid #d8f1e1;
-    }
-
-    .negative-section {
-      background: #fff5f1;
-      border: 1px solid #f8ddd4;
-    }
-
-    .action-title {
-      margin: 0 0 14px;
-      font-size: 18px;
-    }
-
-    .positive-section .action-title {
-      color: #28794d;
-    }
-
-    .negative-section .action-title {
-      color: #a34b39;
-    }
-
-    #positiveActions,
-    #negativeActions {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .action-button {
-      width: 100%;
-      border: 0;
-      border-radius: 14px;
-      padding: 13px 15px;
-      cursor: pointer;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-      font-weight: 700;
-      transition: transform .2s, box-shadow .2s;
-    }
-
-    .action-button:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 15px rgba(0,0,0,.08);
-    }
-
-    .positive-section .action-button {
-      background: white;
-      color: #28794d;
-    }
-
-    .negative-section .action-button {
-      background: white;
-      color: #a34b39;
-    }
-
-    .admin-lock {
-      font-size: 14px;
-      color: #7b8499;
-      padding: 10px;
-      text-align: center;
-    }
-
-    /* =========================
-       HISTÓRICO
-    ========================= */
+/* =========================================================
+   DADOS LOCAIS
+   ========================================================= */
 
-    .history-card {
-      margin-bottom: 22px;
-    }
-
-    .history-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 15px;
-      margin-bottom: 15px;
-    }
+function loadLocalData() {
+  try {
+    const saved = localStorage.getItem(KEY);
 
-    .history-header .card-title {
-      margin: 0;
+    if (!saved) {
+      return structuredClone(defaultData);
     }
 
-    #history {
-      display: flex;
-      flex-direction: column;
-      gap: 9px;
-    }
+    const parsed = JSON.parse(saved);
 
-    .history-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      padding: 13px 15px;
-      border-radius: 13px;
-      background: #f8f9fc;
-    }
+    return {
+      ...structuredClone(defaultData),
+      ...parsed,
+      score: Math.max(0, Number(parsed.score || 0)),
+      levels: Array.isArray(parsed.levels)
+        ? parsed.levels
+        : structuredClone(defaultData.levels),
+      actions: Array.isArray(parsed.actions)
+        ? parsed.actions
+        : structuredClone(defaultData.actions)
+    };
+  } catch (error) {
+    console.error("Erro ao carregar dados locais:", error);
+    return structuredClone(defaultData);
+  }
+}
 
-    .history-left {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      min-width: 0;
-    }
 
-    .history-name {
-      font-weight: 700;
-      overflow-wrap: anywhere;
-    }
+function saveLocalData() {
+  try {
+    data.score = Math.max(0, Number(data.score || 0));
 
-    .history-delta {
-      font-weight: 900;
-      white-space: nowrap;
-    }
+    localStorage.setItem(KEY, JSON.stringify(data));
+  } catch (error) {
+    console.error("Erro ao guardar dados locais:", error);
+  }
+}
 
-    .positive {
-      color: #2e8b57;
-    }
 
-    .negative {
-      color: #c85c49;
-    }
+/* =========================================================
+   INICIALIZAÇÃO
+   ========================================================= */
 
-    .small-button {
-      border: 0;
-      background: #f0eefb;
-      color: #5b4f96;
-      border-radius: 10px;
-      padding: 9px 12px;
-      cursor: pointer;
-      font-weight: 700;
-    }
+document.addEventListener("DOMContentLoaded", async () => {
 
-    .small-button:hover {
-      background: #e6e1f8;
-    }
+  initSupabase();
 
-    /* =========================
-       MODAL ADMIN
-    ========================= */
+  setupEvents();
 
-    .hidden {
-      display: none !important;
-    }
+  render();
 
-    #adminModal {
-      position: fixed;
-      inset: 0;
-      background: rgba(35, 30, 60, .45);
-      backdrop-filter: blur(5px);
-      z-index: 1000;
-      padding: 20px;
-      overflow-y: auto;
-    }
+  await loadFromSupabase();
 
-    .modal-box {
-      width: min(600px, 100%);
-      margin: 30px auto;
-      background: white;
-      border-radius: 25px;
-      padding: 28px;
-      box-shadow: 0 20px 60px rgba(30, 25, 60, .25);
-      position: relative;
-    }
+  render();
 
-    .modal-box h2 {
-      margin: 0 0 22px;
-      color: #4c3f8f;
-    }
+  setInterval(async () => {
+    await loadFromSupabase();
+    render();
+  }, 5000);
+});
 
-    #closeAdmin {
-      position: absolute;
-      right: 18px;
-      top: 18px;
-      border: 0;
-      background: #f2f1f8;
-      width: 38px;
-      height: 38px;
-      border-radius: 50%;
-      cursor: pointer;
-      font-size: 18px;
-    }
 
-    .form-group {
-      margin-bottom: 17px;
-    }
+/* =========================================================
+   EVENTOS
+   ========================================================= */
 
-    .form-group label {
-      display: block;
-      margin-bottom: 7px;
-      font-weight: 700;
-      color: #4e566b;
-    }
+function setupEvents() {
 
-    .form-group input {
-      width: 100%;
-      padding: 12px 14px;
-      border: 1px solid #dfe2ec;
-      border-radius: 12px;
-      outline: none;
-    }
+  // Abrir administração
+  const adminBtn = $("#adminBtn");
 
-    .form-group input:focus {
-      border-color: #8c7ddd;
-      box-shadow: 0 0 0 3px #eeeafd;
-    }
+  if (adminBtn) {
+    adminBtn.addEventListener("click", openAdmin);
+  }
 
-    .primary-button,
-    .danger-button {
-      border: 0;
-      border-radius: 12px;
-      padding: 12px 17px;
-      cursor: pointer;
-      font-weight: 800;
-    }
 
-    .primary-button {
-      background: #6655b7;
-      color: white;
-    }
+  // Fechar administração
+  const closeAdmin = $("#closeAdmin");
 
-    .danger-button {
-      background: #f8e4df;
-      color: #a34b39;
-    }
+  if (closeAdmin) {
+    closeAdmin.addEventListener("click", closeAdminModal);
+  }
 
-    #adminForm {
-      margin-top: 22px;
-    }
 
-    #levelInputs {
-      display: grid;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
+  // Entrar na administração
+  const unlockBtn = $("#unlockBtn");
 
-    .level-admin-row {
-      display: grid;
-      grid-template-columns: 1fr 100px;
-      gap: 10px;
-    }
+  if (unlockBtn) {
+    unlockBtn.addEventListener("click", unlockAdmin);
+  }
 
-    .admin-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 20px;
-    }
 
-    /* =========================
-       RESPONSIVO
-    ========================= */
+  // Enter no campo PIN
+  const pinInput = $("#pinInput");
 
-    @media (max-width: 850px) {
-      .lower-top {
-        grid-template-columns: 1fr;
+  if (pinInput) {
+    pinInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        unlockAdmin();
       }
+    });
+  }
 
-      .score-card {
-        padding: 28px 24px;
-      }
 
-      .actions-columns {
-        grid-template-columns: 1fr;
-      }
+  // Guardar configurações
+  const adminForm = $("#adminForm");
+
+  if (adminForm) {
+    adminForm.addEventListener("submit", saveAdminSettings);
+  }
+
+
+  // Reset
+  const resetBtn = $("#resetBtn");
+
+  if (resetBtn) {
+    resetBtn.addEventListener("click", resetClass);
+  }
+
+
+  // Limpar histórico
+  const clearHistory = $("#clearHistory");
+
+  if (clearHistory) {
+    clearHistory.addEventListener("click", clearHistoryData);
+  }
+
+
+  // Sair da administração
+  const adminLogout = $("#adminLogout");
+
+  if (adminLogout) {
+    adminLogout.addEventListener("click", closeAdminModal);
+  }
+}
+
+
+/* =========================================================
+   ADMINISTRAÇÃO
+   ========================================================= */
+
+function openAdmin() {
+
+  adminUnlocked = false;
+
+  const modal = $("#adminModal");
+
+  if (!modal) return;
+
+  modal.classList.remove("hidden");
+
+  showPinArea();
+
+  loadAdmin();
+}
+
+
+function closeAdminModal() {
+
+  adminUnlocked = false;
+
+  const modal = $("#adminModal");
+
+  if (modal) {
+    modal.classList.add("hidden");
+  }
+
+  render();
+}
+
+
+function showPinArea() {
+
+  const pinArea = $("#pinArea");
+  const adminForm = $("#adminForm");
+
+  if (pinArea) {
+    pinArea.classList.remove("hidden");
+  }
+
+  if (adminForm) {
+    adminForm.classList.add("hidden");
+  }
+
+  const pinInput = $("#pinInput");
+
+  if (pinInput) {
+    pinInput.value = "";
+    pinInput.focus();
+  }
+}
+
+
+function unlockAdmin() {
+
+  const pinInput = $("#pinInput");
+
+  if (!pinInput) return;
+
+  const enteredPin = pinInput.value.trim();
+
+  if (!enteredPin) {
+    alert("Introduza o PIN.");
+    return;
+  }
+
+  if (enteredPin === String(data.pin)) {
+
+    adminUnlocked = true;
+
+    const pinArea = $("#pinArea");
+    const adminForm = $("#adminForm");
+
+    if (pinArea) {
+      pinArea.classList.add("hidden");
     }
 
-    @media (max-width: 560px) {
-      .container {
-        width: min(100% - 20px, 1200px);
-        padding-top: 15px;
-      }
-
-      header {
-        margin-bottom: 14px;
-      }
-
-      .title-icon {
-        font-size: 28px;
-      }
-
-      h1 {
-        font-size: 27px;
-      }
-
-      .admin-button {
-        width: 43px;
-        height: 43px;
-      }
-
-      .score-card {
-        border-radius: 22px;
-        padding: 25px 18px;
-      }
-
-      #score {
-        font-size: 68px;
-      }
-
-      .progress-track {
-        height: 20px;
-      }
-
-      .card {
-        border-radius: 20px;
-        padding: 20px 17px;
-      }
-
-      .actions-columns {
-        gap: 12px;
-      }
-
-      .action-section {
-        padding: 16px;
-      }
-
-      #progressChart {
-        height: 230px;
-      }
-
-      .history-item {
-        align-items: flex-start;
-      }
+    if (adminForm) {
+      adminForm.classList.remove("hidden");
     }
 
-    @media (max-width: 380px) {
-      #score {
-        font-size: 58px;
-      }
+    loadAdmin();
 
-      .card-title {
-        font-size: 19px;
-      }
+    updateAdminVisibility();
 
-      .level {
-        padding: 11px;
-      }
+  } else {
 
-      .level-points {
-        font-size: 13px;
-      }
-    }
-  </style>
-</head>
+    alert("PIN incorreto.");
 
-<body>
+    pinInput.value = "";
+    pinInput.focus();
+  }
+}
 
-  <div class="container">
 
-    <!-- =========================
-         CABEÇALHO
-    ========================== -->
+/* =========================================================
+   ADMIN - CARREGAR CONFIGURAÇÕES
+   ========================================================= */
 
-    <header>
-      <div class="title-area">
-        <div class="title-icon">🏆</div>
+function loadAdmin() {
 
-        <div>
-          <h1>DESAFIO DA TURMA</h1>
-          <div id="classTitle">Turma</div>
-        </div>
-      </div>
+  const classInput = $("#classInput");
 
-      <button id="adminBtn" class="admin-button" title="Administração">
-        ⚙️
-      </button>
-    </header>
+  if (classInput) {
+    classInput.value = data.className || "";
+  }
 
 
-    <!-- =========================
-         PONTUAÇÃO / PROGRESSO
-    ========================== -->
+  /*
+    IMPORTANTE:
+    Nunca mostramos o PIN atual neste campo.
+    O administrador só escreve aqui se quiser alterá-lo.
+  */
 
-    <section class="score-card">
+  const newPinInput = $("#newPinInput");
 
-      <p class="score-label">Pontuação da turma</p>
+  if (newPinInput) {
+    newPinInput.value = "";
+    newPinInput.placeholder =
+      "Deixe vazio para manter o PIN atual";
+  }
 
-      <div id="score">
-        0
-      </div>
 
-      <div class="progress-track">
-        <div id="progressBar"></div>
-      </div>
+  const levelInputs = $("#levelInputs");
 
-      <p id="nextText">
-        Próximo objetivo: —
-      </p>
+  if (!levelInputs) return;
 
-      <div id="celebration"></div>
+  levelInputs.innerHTML = "";
 
-    </section>
 
+  data.levels.forEach((level, index) => {
 
-    <!-- =========================
-         PRÉMIOS + GRÁFICO
-    ========================== -->
+    const row = document.createElement("div");
 
-    <section class="lower-top">
+    row.className = "admin-level-row";
 
-      <!-- PERCURSO DE PRÉMIOS -->
-
-      <div class="card prizes-card">
-
-        <h2 class="card-title">
-          🎁 Percurso de prémios
-        </h2>
-
-        <div id="levels"></div>
-
-      </div>
-
-
-      <!-- GRÁFICO -->
-
-      <div class="card chart-card">
-
-        <h2 class="card-title">
-          📈 Progresso
-        </h2>
-
-        <div class="chart-wrap">
-
-          <svg
-            id="progressChart"
-            viewBox="0 0 600 280"
-            preserveAspectRatio="none"
-            aria-label="Gráfico da evolução dos pontos"
-          >
-
-            <line
-              x1="45"
-              y1="235"
-              x2="570"
-              y2="235"
-              stroke="#e5e7ef"
-              stroke-width="2"
-            />
-
-            <line
-              x1="45"
-              y1="35"
-              x2="45"
-              y2="235"
-              stroke="#e5e7ef"
-              stroke-width="2"
-            />
-
-            <polyline
-              id="chartLine"
-              points=""
-            ></polyline>
-
-            <g id="chartDots"></g>
-
-            <text
-              id="chartCurrentScore"
-              x="55"
-              y="55"
-            ></text>
-
-            <text
-              id="chartEmpty"
-              class="chart-empty"
-              x="300"
-              y="145"
-              text-anchor="middle"
-            >
-              Ainda não existem dados
-            </text>
-
-          </svg>
-
-        </div>
-
-      </div>
-
-    </section>
-
-
-    <!-- =========================
-         AÇÕES
-    ========================== -->
-
-    <section class="card actions-card">
-
-      <div class="actions-columns">
-
-        <!-- GANHAR PONTOS -->
-
-        <div class="action-section positive-section">
-
-          <h2 class="action-title">
-            ➕ Ganhar pontos
-          </h2>
-
-          <div id="positiveActions"></div>
-
-        </div>
-
-
-        <!-- PERDER PONTOS -->
-
-        <div class="action-section negative-section">
-
-          <h2 class="action-title">
-            ➖ Perder pontos
-          </h2>
-
-          <div id="negativeActions"></div>
-
-        </div>
-
-      </div>
-
-    </section>
-
-
-    <!-- =========================
-         HISTÓRICO
-    ========================== -->
-
-    <section class="card history-card">
-
-      <div class="history-header">
-
-        <h2 class="card-title">
-          📋 Histórico
-        </h2>
-
-        <button
-          id="clearHistory"
-          class="small-button"
-        >
-          Limpar
-        </button>
-
-      </div>
-
-      <div id="history"></div>
-
-    </section>
-
-  </div>
-
-
-  <!-- =========================
-       MODAL ADMINISTRAÇÃO
-  ========================== -->
-
-  <div id="adminModal" class="hidden">
-
-    <div class="modal-box">
-
-      <button id="closeAdmin">
-        ✕
-      </button>
-
-      <h2>
-        ⚙️ Administração
-      </h2>
-
-
-      <!-- PIN -->
-
-      <div id="pinArea">
-
-        <div class="form-group">
-
-          <label for="pinInput">
-            PIN de administrador
-          </label>
-
-          <input
-            id="pinInput"
-            type="password"
-            inputmode="numeric"
-            autocomplete="off"
-            placeholder="Introduza o PIN"
-          >
-
-        </div>
-
-        <button
-          id="unlockBtn"
-          class="primary-button"
-        >
-          Entrar na administração
-        </button>
-
-      </div>
-
-
-      <!-- FORMULÁRIO ADMIN -->
-
-      <div
-        id="adminForm"
-        class="hidden"
+    row.innerHTML = `
+      <input
+        type="number"
+        min="0"
+        value="${Number(level.points) || 0}"
+        data-level-points="${index}"
+        placeholder="Pontos"
       >
 
-        <div class="form-group">
+      <input
+        type="text"
+        value="${escapeHtml(level.label || "")}"
+        data-level-label="${index}"
+        placeholder="Nome do prémio"
+      >
 
-          <label for="classInput">
-            Nome da turma
-          </label>
+      <input
+        type="text"
+        value="${escapeHtml(level.emoji || "")}"
+        data-level-emoji="${index}"
+        placeholder="Emoji"
+      >
+    `;
 
-          <input
-            id="classInput"
-            type="text"
-            autocomplete="off"
-          >
-
-        </div>
-
-
-        <div class="form-group">
-
-          <label for="newPinInput">
-            Alterar PIN
-          </label>
-
-          <input
-            id="newPinInput"
-            type="password"
-            inputmode="numeric"
-            autocomplete="new-password"
-            placeholder="Deixe vazio para manter o PIN atual"
-          >
-
-        </div>
+    levelInputs.appendChild(row);
+  });
+}
 
 
-        <h3>
-          🏆 Níveis e prémios
-        </h3>
+/* =========================================================
+   ADMIN - GUARDAR
+   ========================================================= */
 
-        <div id="levelInputs"></div>
+async function saveAdminSettings(event) {
+
+  event.preventDefault();
+
+  if (!adminUnlocked) {
+    alert("🔒 Primeiro entre na Administração.");
+    return;
+  }
 
 
-        <div class="admin-actions">
+  const classInput = $("#classInput");
 
-          <button
-            id="resetBtn"
-            class="danger-button"
-          >
-            🔄 Reiniciar pontuação
-          </button>
+  if (classInput) {
+    const newClassName = classInput.value.trim();
 
-          <button
-            id="adminLogout"
-            class="small-button"
-          >
-            🔒 Sair da Administração
-          </button>
+    if (newClassName) {
+      data.className = newClassName;
+    }
+  }
 
-        </div>
 
+  // Só altera o PIN se o administrador escrever um novo
+  const newPinInput = $("#newPinInput");
+
+  if (newPinInput) {
+
+    const newPin = newPinInput.value.trim();
+
+    if (newPin) {
+      data.pin = newPin;
+    }
+  }
+
+
+  // Atualizar níveis
+  const levelInputs = $("#levelInputs");
+
+  if (levelInputs) {
+
+    data.levels = data.levels.map((level, index) => {
+
+      const pointsInput =
+        levelInputs.querySelector(
+          `[data-level-points="${index}"]`
+        );
+
+      const labelInput =
+        levelInputs.querySelector(
+          `[data-level-label="${index}"]`
+        );
+
+      const emojiInput =
+        levelInputs.querySelector(
+          `[data-level-emoji="${index}"]`
+        );
+
+      return {
+        points: Math.max(
+          0,
+          Number(pointsInput?.value || level.points || 0)
+        ),
+
+        label:
+          labelInput?.value.trim() ||
+          level.label,
+
+        emoji:
+          emojiInput?.value.trim() ||
+          level.emoji
+      };
+    });
+  }
+
+
+  // Ordenar níveis por pontuação
+  data.levels.sort((a, b) => {
+    return Number(a.points) - Number(b.points);
+  });
+
+
+  saveLocalData();
+
+  await saveToSupabase();
+
+  alert("✅ Configurações guardadas.");
+
+  render();
+}
+
+
+/* =========================================================
+   VISIBILIDADE DOS BOTÕES DE PONTOS
+   ========================================================= */
+
+function updateAdminVisibility() {
+
+  const positiveActions = $("#positiveActions");
+  const negativeActions = $("#negativeActions");
+
+  if (!positiveActions || !negativeActions) return;
+
+
+  if (!adminUnlocked) {
+
+    positiveActions.innerHTML = `
+      <div class="admin-lock-message">
+        🔒 Área do administrador
+        <small>Entre na Administração para ganhar pontos.</small>
+      </div>
+    `;
+
+    negativeActions.innerHTML = `
+      <div class="admin-lock-message">
+        🔒 Área do administrador
+        <small>Entre na Administração para retirar pontos.</small>
+      </div>
+    `;
+
+    return;
+  }
+
+
+  renderActions();
+}
+
+
+/* =========================================================
+   RENDER
+   ========================================================= */
+
+function render() {
+
+  data.score = Math.max(0, Number(data.score || 0));
+
+  saveLocalData();
+
+
+  // Nome da turma
+  const classTitle = $("#classTitle");
+
+  if (classTitle) {
+    classTitle.textContent = data.className || "Turma";
+  }
+
+
+  // Pontuação
+  const score = $("#score");
+
+  if (score) {
+    score.textContent = data.score;
+  }
+
+
+  renderProgress();
+
+  renderLevels();
+
+  renderActions();
+
+  renderHistory();
+
+  renderChart();
+
+  updateAdminVisibility();
+}
+
+
+/* =========================================================
+   PROGRESSO
+   ========================================================= */
+
+function renderProgress() {
+
+  const progressBar = $("#progressBar");
+  const nextText = $("#nextText");
+  const celebration = $("#celebration");
+
+  const levels = [...data.levels]
+    .sort((a, b) => Number(a.points) - Number(b.points));
+
+
+  if (!levels.length) {
+
+    if (progressBar) {
+      progressBar.style.width = "0%";
+    }
+
+    if (nextText) {
+      nextText.textContent = "Ainda não existem prémios definidos.";
+    }
+
+    if (celebration) {
+      celebration.textContent = "";
+    }
+
+    return;
+  }
+
+
+  const currentScore = Math.max(0, data.score);
+
+  const nextLevel = levels.find(
+    level => Number(level.points) > currentScore
+  );
+
+
+  if (!nextLevel) {
+
+    if (progressBar) {
+      progressBar.style.width = "100%";
+    }
+
+    if (nextText) {
+      nextText.textContent =
+        "🎉 A turma atingiu todos os prémios!";
+    }
+
+    if (celebration) {
+      celebration.textContent = "🏆 Parabéns, turma!";
+    }
+
+    return;
+  }
+
+
+  const previousLevel =
+    [...levels]
+      .reverse()
+      .find(
+        level => Number(level.points) <= currentScore
+      );
+
+
+  const startPoints =
+    previousLevel
+      ? Number(previousLevel.points)
+      : 0;
+
+  const targetPoints =
+    Number(nextLevel.points);
+
+
+  const totalDistance =
+    targetPoints - startPoints;
+
+  const currentDistance =
+    currentScore - startPoints;
+
+
+  let percentage =
+    totalDistance > 0
+      ? (currentDistance / totalDistance) * 100
+      : 0;
+
+
+  percentage = Math.max(
+    0,
+    Math.min(100, percentage)
+  );
+
+
+  if (progressBar) {
+    progressBar.style.width = `${percentage}%`;
+  }
+
+
+  if (nextText) {
+
+    const remaining =
+      Math.max(
+        0,
+        targetPoints - currentScore
+      );
+
+    nextText.textContent =
+      `Faltam ${remaining} pontos para ${nextLevel.emoji} ${nextLevel.label}`;
+  }
+
+
+  if (celebration) {
+
+    const reached =
+      levels.filter(
+        level =>
+          Number(level.points) <= currentScore
+      );
+
+    if (reached.length) {
+      celebration.textContent =
+        `🎉 Último prémio alcançado: ${reached[reached.length - 1].emoji} ${reached[reached.length - 1].label}`;
+    } else {
+      celebration.textContent = "";
+    }
+  }
+}
+
+
+/* =========================================================
+   NÍVEIS / PRÉMIOS
+   ========================================================= */
+
+function renderLevels() {
+
+  const container = $("#levels");
+
+  if (!container) return;
+
+  container.innerHTML = "";
+
+
+  const levels = [...data.levels]
+    .sort((a, b) => Number(a.points) - Number(b.points));
+
+
+  levels.forEach(level => {
+
+    const reached =
+      data.score >= Number(level.points);
+
+
+    const card = document.createElement("div");
+
+    card.className =
+      `level-card ${reached ? "reached" : ""}`;
+
+
+    card.innerHTML = `
+      <div class="level-emoji">
+        ${escapeHtml(level.emoji || "🎁")}
       </div>
 
-    </div>
+      <div class="level-points">
+        ${Number(level.points)} pts
+      </div>
 
-  </div>
+      <div class="level-label">
+        ${escapeHtml(level.label || "Prémio")}
+      </div>
 
-
-  <!-- =========================
-       SCRIPTS
-  ========================== -->
-
-  <script src="config.js"></script>
-
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-  <script src="app.js"></script>
+      <div class="level-status">
+        ${reached ? "✅ Conquistado" : "🔒 Por conquistar"}
+      </div>
+    `;
 
 
-  <script>
+    container.appendChild(card);
+  });
+}
+
+
+/* =========================================================
+   AÇÕES
+   ========================================================= */
+
+function renderActions() {
+
+  const positiveActions = $("#positiveActions");
+  const negativeActions = $("#negativeActions");
+
+
+  if (!positiveActions || !negativeActions) {
+    return;
+  }
+
+
+  // Se não estiver autenticado, mostramos o aviso
+  if (!adminUnlocked) {
+    return;
+  }
+
+
+  positiveActions.innerHTML = "";
+  negativeActions.innerHTML = "";
+
+
+  data.actions.forEach((action, index) => {
+
+    const button = document.createElement("button");
+
+    button.type = "button";
+
+    button.className =
+      action.points >= 0
+        ? "action-btn positive"
+        : "action-btn negative";
+
+
+    button.innerHTML = `
+      <span class="action-emoji">
+        ${escapeHtml(action.emoji || "")}
+      </span>
+
+      <span class="action-name">
+        ${escapeHtml(action.name || "Ação")}
+      </span>
+
+      <strong>
+        ${action.points > 0 ? "+" : ""}
+        ${Number(action.points)}
+      </strong>
+    `;
+
+
+    button.addEventListener("click", () => {
+      change(index);
+    });
+
+
+    if (action.points >= 0) {
+      positiveActions.appendChild(button);
+    } else {
+      negativeActions.appendChild(button);
+    }
+  });
+}
+
+
+/* =========================================================
+   ALTERAR PONTOS
+   ========================================================= */
+
+async function change(index) {
+
+  if (!adminUnlocked) {
+
+    alert(
+      "🔒 Apenas o administrador pode alterar os pontos."
+    );
+
+    return;
+  }
+
+
+  const action = data.actions[index];
+
+  if (!action) return;
+
+
+  const before =
+    Math.max(0, Number(data.score || 0));
+
+
+  const requestedChange =
+    Number(action.points || 0);
+
+
+  const newScore =
+    Math.max(
+      0,
+      before + requestedChange
+    );
+
+
+  const actualChange =
+    newScore - before;
+
+
+  // Se tentar retirar pontos quando já está a 0
+  if (actualChange === 0) {
+
+    alert(
+      "A turma já está com 0 pontos."
+    );
+
+    return;
+  }
+
+
+  data.score = newScore;
+
+
+  // Guardar no histórico
+  const historyItem = {
+
+    name: action.name,
+
+    emoji: action.emoji,
+
+    delta: actualChange,
+
+    before_score: before,
+
+    after_score: newScore,
+
+    created_at:
+      new Date().toISOString()
+  };
+
+
+  history.unshift(historyItem);
+
+
+  saveLocalData();
+
+  render();
+
+
+  await saveHistoryToSupabase(historyItem);
+
+  await saveToSupabase();
+}
+
+
+/* =========================================================
+   HISTÓRICO
+   ========================================================= */
+
+function renderHistory() {
+
+  const container = $("#history");
+
+  if (!container) return;
+
+
+  if (!history.length) {
+
+    container.innerHTML = `
+      <div class="empty-history">
+        Ainda não existem movimentos.
+      </div>
+    `;
+
+    return;
+  }
+
+
+  container.innerHTML = "";
+
+
+  history.slice(0, 50).forEach(item => {
+
+    const row = document.createElement("div");
+
+    row.className = "history-row";
+
+
+    const delta =
+      Number(item.delta || 0);
+
+
+    const sign =
+      delta > 0 ? "+" : "";
+
+
+    const date =
+      item.created_at
+        ? new Date(item.created_at)
+            .toLocaleString("pt-PT")
+        : "";
+
+
+    row.innerHTML = `
+      <div class="history-icon">
+        ${escapeHtml(item.emoji || "•")}
+      </div>
+
+      <div class="history-info">
+        <strong>
+          ${escapeHtml(item.name || "Movimento")}
+        </strong>
+
+        <small>
+          ${date}
+        </small>
+      </div>
+
+      <div class="history-points ${delta >= 0 ? "positive" : "negative"}">
+        ${sign}${delta}
+      </div>
+    `;
+
+
+    container.appendChild(row);
+  });
+}
+
+
+/* =========================================================
+   DESFAZER ÚLTIMA ALTERAÇÃO
+   ========================================================= */
+
+async function undo() {
+
+  if (!adminUnlocked) {
+
+    alert(
+      "🔒 Apenas o administrador pode desfazer alterações."
+    );
+
+    return;
+  }
+
+
+  if (!history.length) {
+
+    alert(
+      "Não existe nenhuma alteração para desfazer."
+    );
+
+    return;
+  }
+
+
+  const last = history.shift();
+
+
+  data.score =
+    Math.max(
+      0,
+      Number(last.before_score || 0)
+    );
+
+
+  saveLocalData();
+
+  render();
+
+  await saveToSupabase();
+
+
+  alert("↩️ Última alteração desfeita.");
+}
+
+
+/* =========================================================
+   LIMPAR HISTÓRICO
+   ========================================================= */
+
+async function clearHistoryData() {
+
+  if (!adminUnlocked) {
+
+    alert(
+      "🔒 Apenas o administrador pode limpar o histórico."
+    );
+
+    return;
+  }
+
+
+  const confirmed =
+    confirm(
+      "Tem a certeza de que quer limpar o histórico?"
+    );
+
+
+  if (!confirmed) return;
+
+
+  history = [];
+
+  render();
+
+
+  if (
+    supabaseClient &&
+    classroomId
+  ) {
+
+    try {
+
+      await supabaseClient
+        .from("score_history")
+        .delete()
+        .eq(
+          "classroom_id",
+          classroomId
+        );
+
+    } catch (error) {
+
+      console.error(
+        "Erro ao limpar histórico:",
+        error
+      );
+    }
+  }
+}
+
+
+/* =========================================================
+   RESET
+   ========================================================= */
+
+async function resetClass() {
+
+  if (!adminUnlocked) {
+
+    alert(
+      "🔒 Apenas o administrador pode fazer o reset."
+    );
+
+    return;
+  }
+
+
+  const confirmed =
+    confirm(
+      "Tem a certeza de que quer colocar a pontuação a 0?"
+    );
+
+
+  if (!confirmed) return;
+
+
+  data.score = 0;
+
+  history = [];
+
+
+  saveLocalData();
+
+  render();
+
+  await saveToSupabase();
+
+
+  if (
+    supabaseClient &&
+    classroomId
+  ) {
+
+    try {
+
+      await supabaseClient
+        .from("score_history")
+        .delete()
+        .eq(
+          "classroom_id",
+          classroomId
+        );
+
+    } catch (error) {
+
+      console.error(
+        "Erro ao apagar histórico:",
+        error
+      );
+    }
+  }
+
+
+  alert(
+    "🔄 A pontuação foi reiniciada para 0."
+  );
+}
+
+
+/* =========================================================
+   GRÁFICO
+   ========================================================= */
+
+function renderChart() {
+
+  const line = $("#chartLine");
+  const dots = $("#chartDots");
+  const currentScore = $("#chartCurrentScore");
+  const empty = $("#chartEmpty");
+
+
+  if (!line || !dots) return;
+
+
+  if (!history.length) {
+
+    line.setAttribute(
+      "points",
+      ""
+    );
+
+    dots.innerHTML = "";
+
+
+    if (currentScore) {
+      currentScore.textContent =
+        data.score;
+    }
+
+
+    if (empty) {
+      empty.classList.remove("hidden");
+    }
+
+    return;
+  }
+
+
+  if (empty) {
+    empty.classList.add("hidden");
+  }
+
+
+  /*
+    Criamos a evolução:
+    ponto inicial + alterações do histórico.
+  */
+
+  const orderedHistory =
+    [...history]
+      .reverse();
+
+
+  const values = [0];
+
+
+  orderedHistory.forEach(item => {
+
+    values.push(
+      Math.max(
+        0,
+        Number(item.after_score || 0)
+      )
+    );
+  });
+
+
+  values.push(
+    Math.max(0, data.score)
+  );
+
+
+  const width = 700;
+  const height = 260;
+  const padding = 30;
+
+
+  const maxValue =
+    Math.max(
+      10,
+      ...values
+    );
+
+
+  const minValue = 0;
+
+
+  const usableWidth =
+    width - padding * 2;
+
+  const usableHeight =
+    height - padding * 2;
+
+
+  const points =
+    values.map((value, index) => {
+
+      const x =
+        padding +
+        (
+          index /
+          Math.max(1, values.length - 1)
+        ) *
+        usableWidth;
+
+
+      const ratio =
+        (value - minValue) /
+        Math.max(1, maxValue - minValue);
+
+
+      const y =
+        height -
+        padding -
+        ratio * usableHeight;
+
+
+      return {
+        x,
+        y,
+        value
+      };
+    });
+
+
+  line.setAttribute(
+    "points",
+    points
+      .map(p => `${p.x},${p.y}`)
+      .join(" ")
+  );
+
+
+  dots.innerHTML = "";
+
+
+  points.forEach(point => {
+
+    const circle =
+      document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "circle"
+      );
+
+
+    circle.setAttribute(
+      "cx",
+      point.x
+    );
+
+    circle.setAttribute(
+      "cy",
+      point.y
+    );
+
+    circle.setAttribute(
+      "r",
+      "6"
+    );
+
+
+    const title =
+      document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "title"
+      );
+
+
+    title.textContent =
+      `${point.value} pontos`;
+
+
+    circle.appendChild(title);
+
+    dots.appendChild(circle);
+  });
+
+
+  if (currentScore) {
+    currentScore.textContent =
+      data.score;
+  }
+}
+
+
+/* =========================================================
+   SUPABASE - CARREGAR
+   ========================================================= */
+
+async function loadFromSupabase() {
+
+  if (!supabaseClient) {
+    return;
+  }
+
+
+  try {
+
+    const result =
+      await supabaseClient
+        .from("classrooms")
+        .select("*")
+        .limit(1);
+
+
+    if (result.error) {
+
+      console.warn(
+        "Não foi possível carregar do Supabase:",
+        result.error
+      );
+
+      return;
+    }
+
+
+    const rows =
+      result.data || [];
+
+
+    if (!rows.length) {
+
+      console.log(
+        "Ainda não existe uma turma no Supabase."
+      );
+
+      return;
+    }
+
+
+    const remote =
+      rows[0];
+
+
+    classroomId =
+      remote.id || null;
+
+
+    data.className =
+      remote.name ||
+      data.className;
+
+
     /*
-      Botão para sair da área de administração.
-      Mantém a lógica principal no app.js.
+      O PIN só é atualizado se vier efetivamente
+      da base de dados.
     */
 
-    document.addEventListener("DOMContentLoaded", () => {
+    if (
+      remote.pin !== undefined &&
+      remote.pin !== null
+    ) {
 
-      const logoutButton = document.getElementById("adminLogout");
-      const closeButton = document.getElementById("closeAdmin");
+      data.pin =
+        String(remote.pin);
+    }
 
-      if (logoutButton && closeButton) {
-        logoutButton.addEventListener("click", () => {
-          closeButton.click();
-        });
+
+    data.score =
+      Math.max(
+        0,
+        Number(remote.score || 0)
+      );
+
+
+    if (
+      Array.isArray(remote.levels)
+    ) {
+
+      data.levels =
+        remote.levels;
+    }
+
+
+    if (
+      Array.isArray(remote.actions)
+    ) {
+
+      data.actions =
+        remote.actions;
+    }
+
+
+    saveLocalData();
+
+
+    await loadHistoryFromSupabase();
+
+  } catch (error) {
+
+    console.error(
+      "Erro ao sincronizar com Supabase:",
+      error
+    );
+  }
+}
+
+
+/* =========================================================
+   SUPABASE - GUARDAR
+   ========================================================= */
+
+async function saveToSupabase() {
+
+  if (!supabaseClient) {
+    return;
+  }
+
+
+  try {
+
+    const payload = {
+
+      name:
+        data.className,
+
+      pin:
+        data.pin,
+
+      score:
+        Math.max(
+          0,
+          Number(data.score || 0)
+        ),
+
+      levels:
+        data.levels,
+
+      actions:
+        data.actions,
+
+      updated_at:
+        new Date().toISOString()
+    };
+
+
+    let result;
+
+
+    if (classroomId) {
+
+      result =
+        await supabaseClient
+          .from("classrooms")
+          .update(payload)
+          .eq("id", classroomId);
+
+    } else {
+
+      result =
+        await supabaseClient
+          .from("classrooms")
+          .insert(payload)
+          .select()
+          .single();
+
+
+      if (
+        result.data &&
+        result.data.id
+      ) {
+
+        classroomId =
+          result.data.id;
       }
+    }
 
-    });
-  </script>
 
-</body>
-</html>
+    if (result.error) {
+
+      console.error(
+        "Erro ao guardar no Supabase:",
+        result.error
+      );
+    }
+
+  } catch (error) {
+
+    console.error(
+      "Erro ao guardar dados:",
+      error
+    );
+  }
+}
+
+
+/* =========================================================
+   SUPABASE - HISTÓRICO
+   ========================================================= */
+
+async function saveHistoryToSupabase(item) {
+
+  if (
+    !supabaseClient ||
+    !classroomId
+  ) {
+    return;
+  }
+
+
+  try {
+
+    const result =
+      await supabaseClient
+        .from("score_history")
+        .insert({
+
+          classroom_id:
+            classroomId,
+
+          name:
+            item.name,
+
+          emoji:
+            item.emoji,
+
+          delta:
+            item.delta,
+
+          before_score:
+            item.before_score,
+
+          after_score:
+            item.after_score,
+
+          created_at:
+            item.created_at
+        });
+
+
+    if (result.error) {
+
+      console.error(
+        "Erro ao guardar histórico:",
+        result.error
+      );
+    }
+
+  } catch (error) {
+
+    console.error(
+      "Erro no histórico:",
+      error
+    );
+  }
+}
+
+
+/* =========================================================
+   SUPABASE - CARREGAR HISTÓRICO
+   ========================================================= */
+
+async function loadHistoryFromSupabase() {
+
+  if (
+    !supabaseClient ||
+    !classroomId
+  ) {
+    return;
+  }
+
+
+  try {
+
+    const result =
+      await supabaseClient
+        .from("score_history")
+        .select("*")
+        .eq(
+          "classroom_id",
+          classroomId
+        )
+        .order(
+          "created_at",
+          {
+            ascending: false
+          }
+        )
+        .limit(100);
+
+
+    if (result.error) {
+
+      console.error(
+        "Erro ao carregar histórico:",
+        result.error
+      );
+
+      return;
+    }
+
+
+    history =
+      result.data || [];
+
+
+  } catch (error) {
+
+    console.error(
+      "Erro ao carregar histórico:",
+      error
+    );
+  }
+}
+
+
+/* =========================================================
+   UTILITÁRIO DE SEGURANÇA
+   ========================================================= */
+
+function escapeHtml(value) {
+
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
