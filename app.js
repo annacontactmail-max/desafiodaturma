@@ -1,1730 +1,984 @@
-const KEY = "desafioTurmaV2";
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Desafio da Turma</title>
 
-const DEFAULTS = {
-  className: "Turma",
-  pin: "1234",
-  score: 0,
-
-  levels: [
-    { name: "Sair mais cedo", points: 20, emoji: "🟦" },
-    { name: "Aula livre", points: 35, emoji: "🟩" },
-    { name: "Torneio", points: 50, emoji: "🟨" },
-    { name: "Aula na rua", points: 70, emoji: "🟧" },
-    { name: "Festa 1h", points: 100, emoji: "🟪" },
-    { name: "Festa 2h", points: 130, emoji: "🏆" }
-  ],
-
-  actions: [
-    {
-      name: "Semana sem ocorrências nem faltas",
-      points: 3,
-      emoji: "🟢"
-    },
-    {
-      name: "Elogio",
-      points: 4,
-      emoji: "⭐"
-    },
-    {
-      name: "Ocorrência",
-      points: -3,
-      emoji: "🔴"
-    },
-    {
-      name: "Falta injustificada",
-      points: -2,
-      emoji: "🟠"
-    },
-    {
-      name: "Falta disciplinar",
-      points: -10,
-      emoji: "🚨"
-    }
-  ]
-};
-
-let data = loadLocal();
-let history = [];
-let adminUnlocked = false;
-let currentClassroomId = null;
-let supabaseClient = null;
-
-const $ = (selector) => document.querySelector(selector);
-
-
-// ============================================================
-// LOCAL STORAGE
-// ============================================================
-
-function loadLocal() {
-  try {
-    const saved = localStorage.getItem(KEY);
-
-    if (!saved) {
-      return JSON.parse(JSON.stringify(DEFAULTS));
+  <style>
+    * {
+      box-sizing: border-box;
     }
 
-    const parsed = JSON.parse(saved);
-
-    return {
-      ...JSON.parse(JSON.stringify(DEFAULTS)),
-      ...parsed,
-      score: Math.max(0, Number(parsed.score) || 0),
-      levels: Array.isArray(parsed.levels)
-        ? parsed.levels
-        : JSON.parse(JSON.stringify(DEFAULTS.levels)),
-      actions: Array.isArray(parsed.actions)
-        ? parsed.actions
-        : JSON.parse(JSON.stringify(DEFAULTS.actions))
-    };
-  } catch (error) {
-    console.error("Erro ao carregar dados:", error);
-    return JSON.parse(JSON.stringify(DEFAULTS));
-  }
-}
-
-
-function saveLocal() {
-  data.score = Math.max(0, Number(data.score) || 0);
-
-  localStorage.setItem(
-    KEY,
-    JSON.stringify(data)
-  );
-}
-
-
-// ============================================================
-// HISTÓRICO LOCAL
-// ============================================================
-
-function loadLocalHistory() {
-  try {
-    const saved =
-      localStorage.getItem(KEY + "_history");
-
-    if (!saved) {
-      return [];
+    html {
+      width: 100%;
+      overflow-x: hidden;
     }
 
-    const parsed = JSON.parse(saved);
-
-    return Array.isArray(parsed)
-      ? parsed
-      : [];
-  } catch {
-    return [];
-  }
-}
-
-
-function saveLocalHistory() {
-  localStorage.setItem(
-    KEY + "_history",
-    JSON.stringify(history)
-  );
-}
-
-
-// ============================================================
-// SUPABASE
-// ============================================================
-
-function initSupabase() {
-  try {
-    if (
-      typeof window.supabase !== "undefined" &&
-      typeof SUPABASE_URL !== "undefined" &&
-      typeof SUPABASE_KEY !== "undefined"
-    ) {
-      supabaseClient =
-        window.supabase.createClient(
-          SUPABASE_URL,
-          SUPABASE_KEY
-        );
-
-      console.log("Supabase ligado.");
-    }
-  } catch (error) {
-    console.error(
-      "Erro ao iniciar Supabase:",
-      error
-    );
-
-    supabaseClient = null;
-  }
-}
-
-
-// ============================================================
-// CARREGAR DO SUPABASE
-// ============================================================
-
-async function loadRemote() {
-  if (!supabaseClient) {
-    return;
-  }
-
-  try {
-    const {
-      data: classrooms,
-      error
-    } = await supabaseClient
-      .from("classrooms")
-      .select("*")
-      .limit(1);
-
-    if (error) {
-      console.error(
-        "Erro ao carregar turma:",
-        error
-      );
-      return;
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+      color: #25324a;
+      overflow-x: hidden;
     }
 
-    if (
-      !classrooms ||
-      classrooms.length === 0
-    ) {
-      return;
+    button,
+    input {
+      font: inherit;
     }
 
-    const remote = classrooms[0];
-
-    currentClassroomId = remote.id;
-
-    data.className =
-      remote.name ||
-      DEFAULTS.className;
-
-    data.pin =
-      remote.pin ||
-      data.pin ||
-      DEFAULTS.pin;
-
-    data.score =
-      Math.max(
-        0,
-        Number(remote.score) || 0
-      );
-
-    if (Array.isArray(remote.levels)) {
-      data.levels = remote.levels;
+    .container {
+      width: min(1200px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 24px 0 50px;
     }
 
-    if (Array.isArray(remote.actions)) {
-      data.actions = remote.actions;
+    /* =========================
+       CABEÇALHO
+    ========================= */
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
     }
 
-    saveLocal();
-
-    await loadRemoteHistory();
-
-    render();
-
-  } catch (error) {
-    console.error(
-      "Erro na sincronização:",
-      error
-    );
-  }
-}
-
-
-// ============================================================
-// GUARDAR NO SUPABASE
-// ============================================================
-
-async function saveRemote() {
-  if (!supabaseClient) {
-    return;
-  }
-
-  try {
-    const payload = {
-      name: data.className,
-      pin: data.pin,
-      score: Math.max(
-        0,
-        Number(data.score) || 0
-      ),
-      levels: data.levels,
-      actions: data.actions,
-      updated_at:
-        new Date().toISOString()
-    };
-
-    if (currentClassroomId) {
-      const { error } =
-        await supabaseClient
-          .from("classrooms")
-          .update(payload)
-          .eq(
-            "id",
-            currentClassroomId
-          );
-
-      if (error) {
-        console.error(
-          "Erro ao guardar:",
-          error
-        );
-      }
-    } else {
-      const {
-        data: inserted,
-        error
-      } = await supabaseClient
-        .from("classrooms")
-        .insert(payload)
-        .select()
-        .single();
-
-      if (error) {
-        console.error(
-          "Erro ao criar turma:",
-          error
-        );
-        return;
-      }
-
-      if (inserted) {
-        currentClassroomId =
-          inserted.id;
-      }
-    }
-  } catch (error) {
-    console.error(
-      "Erro ao guardar no Supabase:",
-      error
-    );
-  }
-}
-
-
-// ============================================================
-// HISTÓRICO SUPABASE
-// ============================================================
-
-async function loadRemoteHistory() {
-  if (
-    !supabaseClient ||
-    !currentClassroomId
-  ) {
-    return;
-  }
-
-  try {
-    const {
-      data: remoteHistory,
-      error
-    } = await supabaseClient
-      .from("score_history")
-      .select("*")
-      .eq(
-        "classroom_id",
-        currentClassroomId
-      )
-      .order(
-        "created_at",
-        {
-          ascending: false
-        }
-      );
-
-    if (error) {
-      console.error(
-        "Erro ao carregar histórico:",
-        error
-      );
-      return;
+    .title-area {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
 
-    history =
-      Array.isArray(remoteHistory)
-        ? remoteHistory
-        : [];
-
-    saveLocalHistory();
-
-  } catch (error) {
-    console.error(
-      "Erro no histórico:",
-      error
-    );
-  }
-}
-
-
-async function saveRemoteHistory(item) {
-  if (
-    !supabaseClient ||
-    !currentClassroomId
-  ) {
-    return;
-  }
-
-  try {
-    const { error } =
-      await supabaseClient
-        .from("score_history")
-        .insert({
-          classroom_id:
-            currentClassroomId,
-
-          name: item.name,
-          emoji: item.emoji,
-          delta: item.delta,
-
-          before_score:
-            item.before_score,
-
-          after_score:
-            item.after_score,
-
-          created_at:
-            item.created_at
-        });
-
-    if (error) {
-      console.error(
-        "Erro ao guardar histórico:",
-        error
-      );
-    }
-  } catch (error) {
-    console.error(
-      "Erro no histórico:",
-      error
-    );
-  }
-}
-
-
-// ============================================================
-// RENDER PRINCIPAL
-// ============================================================
-
-function render() {
-  data.score = Math.max(
-    0,
-    Number(data.score) || 0
-  );
-
-  if ($("#classTitle")) {
-    $("#classTitle").textContent =
-      data.className;
-  }
-
-  // PONTUAÇÃO
-  if ($("#score")) {
-    $("#score").textContent =
-      data.score;
-  }
-
-  renderProgress();
-  renderLevels();
-  renderActions();
-  renderHistory();
-  renderChart();
-  updateAdminVisibility();
-}
-
-
-// ============================================================
-// PROGRESSO
-// ============================================================
-
-function renderProgress() {
-  const score = Math.max(
-    0,
-    Number(data.score) || 0
-  );
-
-  const levels =
-    [...data.levels].sort(
-      (a, b) =>
-        Number(a.points) -
-        Number(b.points)
-    );
-
-  let previousPoints = 0;
-  let nextLevel = null;
-
-  for (const level of levels) {
-    if (
-      score <
-      Number(level.points)
-    ) {
-      nextLevel = level;
-      break;
+    .title-icon {
+      font-size: 36px;
     }
 
-    previousPoints =
-      Number(level.points);
-  }
-
-  // ----------------------------------------------------------
-  // TODOS OS NÍVEIS CONQUISTADOS
-  // ----------------------------------------------------------
-
-  if (!nextLevel) {
-    if ($("#progressBar")) {
-      $("#progressBar").style.width =
-        "100%";
+    h1 {
+      margin: 0;
+      font-size: clamp(26px, 4vw, 40px);
+      color: #4c3f8f;
+      line-height: 1.05;
     }
 
-    if ($("#nextText")) {
-      $("#nextText").textContent =
-        "🏆 Todos os prémios conquistados!";
+    #classTitle {
+      margin-top: 4px;
+      font-size: 15px;
+      color: #7b8499;
     }
 
-    if ($("#celebration")) {
-      $("#celebration").textContent =
-        "🎉 Parabéns, turma!";
+    .admin-button {
+      border: 0;
+      background: white;
+      color: #51458d;
+      width: 48px;
+      height: 48px;
+      border-radius: 15px;
+      cursor: pointer;
+      font-size: 22px;
+      box-shadow: 0 5px 18px rgba(63, 52, 112, 0.10);
+      transition: transform .2s, box-shadow .2s;
     }
 
-    return;
-  }
+    .admin-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 22px rgba(63, 52, 112, 0.15);
+    }
 
-  // ----------------------------------------------------------
-  // PROGRESSO PARA O PRÓXIMO NÍVEL
-  // ----------------------------------------------------------
+    /* =========================
+       PONTUAÇÃO EM GRANDE DESTAQUE
+    ========================= */
 
-  const targetPoints =
-    Number(nextLevel.points);
+    .score-card {
+      background: white;
+      border-radius: 28px;
+      padding: 34px 38px 30px;
+      box-shadow: 0 12px 35px rgba(63, 52, 112, 0.10);
+      margin-bottom: 22px;
+      border: 1px solid rgba(125, 110, 190, 0.08);
+      text-align: center;
+    }
 
-  const totalRange =
-    targetPoints -
-    previousPoints;
+    .score-label {
+      margin: 0 0 8px;
+      color: #7b8499;
+      font-size: 16px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
 
-  const currentProgress =
-    score -
-    previousPoints;
+    #score {
+      font-size: clamp(58px, 10vw, 105px);
+      line-height: 1;
+      font-weight: 900;
+      color: #5b4bb7;
+      margin: 5px 0 22px;
+    }
 
-  let percentage =
-    totalRange > 0
-      ? (currentProgress /
-          totalRange) *
-        100
-      : 0;
+    .points-word {
+      font-size: .28em;
+      vertical-align: middle;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
 
-  percentage =
-    Math.max(
-      0,
-      Math.min(
-        100,
-        percentage
-      )
-    );
+    .progress-track {
+      width: 100%;
+      height: 25px;
+      background: #eeeafb;
+      border-radius: 999px;
+      overflow: hidden;
+      box-shadow: inset 0 2px 5px rgba(70, 55, 130, 0.08);
+    }
 
-  if ($("#progressBar")) {
-    $("#progressBar").style.width =
-      percentage + "%";
-  }
+    #progressBar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #8b7be8, #6552c5);
+      border-radius: 999px;
+      transition: width .5s ease;
+    }
 
-  if ($("#nextText")) {
-    const missing =
-      Math.max(
-        0,
-        targetPoints - score
-      );
+    #nextText {
+      margin: 15px 0 0;
+      font-size: 17px;
+      color: #69738a;
+      font-weight: 600;
+    }
 
-    $("#nextText").textContent =
-      `${missing} pontos para ${nextLevel.emoji} ${nextLevel.name}`;
-  }
+    #celebration {
+      margin-top: 14px;
+      font-size: 20px;
+      font-weight: 800;
+      color: #5b4bb7;
+    }
 
-  if ($("#celebration")) {
-    $("#celebration").textContent =
-      `${nextLevel.emoji} Próximo prémio: ${nextLevel.name}`;
-  }
-}
+    /* =========================
+       PRÉMIOS + GRÁFICO
+    ========================= */
 
+    .lower-top {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+      margin-bottom: 22px;
+    }
 
-// ============================================================
-// NÍVEIS E PRÉMIOS
-// ============================================================
+    .card {
+      background: white;
+      border-radius: 24px;
+      padding: 25px;
+      box-shadow: 0 10px 30px rgba(63, 52, 112, 0.08);
+      border: 1px solid rgba(125, 110, 190, 0.07);
+    }
 
-function renderLevels() {
-  const container =
-    $("#levels");
+    .card-title {
+      margin: 0 0 20px;
+      font-size: 21px;
+      color: #4c3f8f;
+    }
 
-  if (!container) {
-    return;
-  }
+    /* Prémios */
 
-  container.innerHTML = "";
+    #levels {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
 
-  const levels =
-    [...data.levels].sort(
-      (a, b) =>
-        Number(a.points) -
-        Number(b.points)
-    );
+    .level {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 13px 15px;
+      border-radius: 15px;
+      background: #f7f5ff;
+      border: 1px solid #ece8ff;
+      transition: transform .2s, background .2s;
+    }
 
-  levels.forEach(
-    (level) => {
-      const card =
-        document.createElement(
-          "div"
-        );
+    .level:hover {
+      transform: translateX(3px);
+    }
 
-      card.className =
-        "levelCard";
+    .level.reached {
+      background: #eeeaff;
+      border-color: #dcd5ff;
+    }
 
-      const achieved =
-        data.score >=
-        Number(level.points);
+    .level-name {
+      font-weight: 700;
+      color: #4c5368;
+    }
 
-      if (achieved) {
-        card.classList.add(
-          "achieved"
-        );
+    .level-points {
+      white-space: nowrap;
+      font-weight: 800;
+      color: #6658a8;
+      font-size: 14px;
+    }
+
+    /* Gráfico */
+
+    .chart-wrap {
+      position: relative;
+      width: 100%;
+    }
+
+    #progressChart {
+      width: 100%;
+      height: 280px;
+      display: block;
+      overflow: visible;
+    }
+
+    #chartLine {
+      fill: none;
+      stroke: #705cc7;
+      stroke-width: 4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    #chartDots circle {
+      fill: #705cc7;
+      stroke: white;
+      stroke-width: 3;
+    }
+
+    .chart-empty {
+      fill: #9299aa;
+      font-size: 14px;
+    }
+
+    #chartCurrentScore {
+      fill: #51458d;
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    /* =========================
+       AÇÕES
+    ========================= */
+
+    .actions-card {
+      margin-bottom: 22px;
+    }
+
+    .actions-columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .action-section {
+      padding: 20px;
+      border-radius: 20px;
+    }
+
+    .positive-section {
+      background: #f0faf4;
+      border: 1px solid #d8f1e1;
+    }
+
+    .negative-section {
+      background: #fff5f1;
+      border: 1px solid #f8ddd4;
+    }
+
+    .action-title {
+      margin: 0 0 14px;
+      font-size: 18px;
+    }
+
+    .positive-section .action-title {
+      color: #28794d;
+    }
+
+    .negative-section .action-title {
+      color: #a34b39;
+    }
+
+    #positiveActions,
+    #negativeActions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .action-button {
+      width: 100%;
+      border: 0;
+      border-radius: 14px;
+      padding: 13px 15px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      transition: transform .2s, box-shadow .2s;
+    }
+
+    .action-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 15px rgba(0,0,0,.08);
+    }
+
+    .positive-section .action-button {
+      background: white;
+      color: #28794d;
+    }
+
+    .negative-section .action-button {
+      background: white;
+      color: #a34b39;
+    }
+
+    .admin-lock {
+      font-size: 14px;
+      color: #7b8499;
+      padding: 10px;
+      text-align: center;
+    }
+
+    /* =========================
+       HISTÓRICO
+    ========================= */
+
+    .history-card {
+      margin-bottom: 22px;
+    }
+
+    .history-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+
+    .history-header .card-title {
+      margin: 0;
+    }
+
+    #history {
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+
+    .history-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 15px;
+      border-radius: 13px;
+      background: #f8f9fc;
+    }
+
+    .history-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .history-name {
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+
+    .history-delta {
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .positive {
+      color: #2e8b57;
+    }
+
+    .negative {
+      color: #c85c49;
+    }
+
+    .small-button {
+      border: 0;
+      background: #f0eefb;
+      color: #5b4f96;
+      border-radius: 10px;
+      padding: 9px 12px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .small-button:hover {
+      background: #e6e1f8;
+    }
+
+    /* =========================
+       MODAL ADMIN
+    ========================= */
+
+    .hidden {
+      display: none !important;
+    }
+
+    #adminModal {
+      position: fixed;
+      inset: 0;
+      background: rgba(35, 30, 60, .45);
+      backdrop-filter: blur(5px);
+      z-index: 1000;
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .modal-box {
+      width: min(600px, 100%);
+      margin: 30px auto;
+      background: white;
+      border-radius: 25px;
+      padding: 28px;
+      box-shadow: 0 20px 60px rgba(30, 25, 60, .25);
+      position: relative;
+    }
+
+    .modal-box h2 {
+      margin: 0 0 22px;
+      color: #4c3f8f;
+    }
+
+    #closeAdmin {
+      position: absolute;
+      right: 18px;
+      top: 18px;
+      border: 0;
+      background: #f2f1f8;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 18px;
+    }
+
+    .form-group {
+      margin-bottom: 17px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 7px;
+      font-weight: 700;
+      color: #4e566b;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid #dfe2ec;
+      border-radius: 12px;
+      outline: none;
+    }
+
+    .form-group input:focus {
+      border-color: #8c7ddd;
+      box-shadow: 0 0 0 3px #eeeafd;
+    }
+
+    .primary-button,
+    .danger-button {
+      border: 0;
+      border-radius: 12px;
+      padding: 12px 17px;
+      cursor: pointer;
+      font-weight: 800;
+    }
+
+    .primary-button {
+      background: #6655b7;
+      color: white;
+    }
+
+    .danger-button {
+      background: #f8e4df;
+      color: #a34b39;
+    }
+
+    #adminForm {
+      margin-top: 22px;
+    }
+
+    #levelInputs {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .level-admin-row {
+      display: grid;
+      grid-template-columns: 1fr 100px;
+      gap: 10px;
+    }
+
+    .admin-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    /* =========================
+       RESPONSIVO
+    ========================= */
+
+    @media (max-width: 850px) {
+      .lower-top {
+        grid-template-columns: 1fr;
       }
 
-      card.innerHTML = `
-        <div class="levelEmoji">
-          ${level.emoji || "🏆"}
+      .score-card {
+        padding: 28px 24px;
+      }
+
+      .actions-columns {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .container {
+        width: min(100% - 20px, 1200px);
+        padding-top: 15px;
+      }
+
+      header {
+        margin-bottom: 14px;
+      }
+
+      .title-icon {
+        font-size: 28px;
+      }
+
+      h1 {
+        font-size: 27px;
+      }
+
+      .admin-button {
+        width: 43px;
+        height: 43px;
+      }
+
+      .score-card {
+        border-radius: 22px;
+        padding: 25px 18px;
+      }
+
+      #score {
+        font-size: 68px;
+      }
+
+      .progress-track {
+        height: 20px;
+      }
+
+      .card {
+        border-radius: 20px;
+        padding: 20px 17px;
+      }
+
+      .actions-columns {
+        gap: 12px;
+      }
+
+      .action-section {
+        padding: 16px;
+      }
+
+      #progressChart {
+        height: 230px;
+      }
+
+      .history-item {
+        align-items: flex-start;
+      }
+    }
+
+    @media (max-width: 380px) {
+      #score {
+        font-size: 58px;
+      }
+
+      .card-title {
+        font-size: 19px;
+      }
+
+      .level {
+        padding: 11px;
+      }
+
+      .level-points {
+        font-size: 13px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="container">
+
+    <!-- =========================
+         CABEÇALHO
+    ========================== -->
+
+    <header>
+      <div class="title-area">
+        <div class="title-icon">🏆</div>
+
+        <div>
+          <h1>DESAFIO DA TURMA</h1>
+          <div id="classTitle">Turma</div>
         </div>
-
-        <div class="levelInfo">
-          <strong>
-            ${escapeHtml(level.name)}
-          </strong>
-
-          <span>
-            ${Number(level.points)} pontos
-          </span>
-        </div>
-
-        <div class="levelStatus">
-          ${
-            achieved
-              ? "✅"
-              : "🔒"
-          }
-        </div>
-      `;
-
-      container.appendChild(card);
-    }
-  );
-}
-
-
-// ============================================================
-// BOTÕES DE PONTOS
-// ============================================================
-
-function renderActions() {
-  const positive =
-    $("#positiveActions");
-
-  const negative =
-    $("#negativeActions");
-
-  if (positive) {
-    positive.innerHTML = "";
-  }
-
-  if (negative) {
-    negative.innerHTML = "";
-  }
-
-  data.actions.forEach(
-    (action, index) => {
-      const button =
-        document.createElement(
-          "button"
-        );
-
-      button.type = "button";
-
-      button.className =
-        "actionButton";
-
-      button.innerHTML = `
-        <span class="actionEmoji">
-          ${action.emoji || "⭐"}
-        </span>
-
-        <span class="actionName">
-          ${escapeHtml(action.name)}
-        </span>
-
-        <strong>
-          ${
-            Number(action.points) > 0
-              ? "+"
-              : ""
-          }${Number(action.points)}
-        </strong>
-      `;
-
-      button.addEventListener(
-        "click",
-        () => change(index)
-      );
-
-      if (
-        Number(action.points) >= 0
-      ) {
-        if (positive) {
-          positive.appendChild(
-            button
-          );
-        }
-      } else {
-        if (negative) {
-          negative.appendChild(
-            button
-          );
-        }
-      }
-    }
-  );
-
-  updateAdminVisibility();
-}
-
-
-// ============================================================
-// BLOQUEAR BOTÕES PARA QUEM NÃO É ADMIN
-// ============================================================
-
-function updateAdminVisibility() {
-  const positive =
-    $("#positiveActions");
-
-  const negative =
-    $("#negativeActions");
-
-  if (adminUnlocked) {
-    if (positive) {
-      positive.style.display = "";
-    }
-
-    if (negative) {
-      negative.style.display = "";
-    }
-
-    const positiveLocked =
-      $("#positiveLocked");
-
-    const negativeLocked =
-      $("#negativeLocked");
-
-    if (positiveLocked) {
-      positiveLocked.style.display =
-        "none";
-    }
-
-    if (negativeLocked) {
-      negativeLocked.style.display =
-        "none";
-    }
-
-  } else {
-    if (positive) {
-      positive.style.display =
-        "none";
-    }
-
-    if (negative) {
-      negative.style.display =
-        "none";
-    }
-
-    const positiveLocked =
-      $("#positiveLocked");
-
-    const negativeLocked =
-      $("#negativeLocked");
-
-    if (positiveLocked) {
-      positiveLocked.style.display =
-        "";
-      positiveLocked.textContent =
-        "🔒 Só o administrador pode ganhar pontos.";
-    }
-
-    if (negativeLocked) {
-      negativeLocked.style.display =
-        "";
-      negativeLocked.textContent =
-        "🔒 Só o administrador pode retirar pontos.";
-    }
-  }
-}
-
-
-// ============================================================
-// ADICIONAR / RETIRAR PONTOS
-// ============================================================
-
-async function change(index) {
-  if (!adminUnlocked) {
-    alert(
-      "🔒 Apenas o administrador pode alterar os pontos."
-    );
-    return;
-  }
-
-  const action =
-    data.actions[index];
-
-  if (!action) {
-    return;
-  }
-
-  const before =
-    Math.max(
-      0,
-      Number(data.score) || 0
-    );
-
-  const delta =
-    Number(action.points) || 0;
-
-  // NUNCA DEIXAR ABAIXO DE ZERO
-  const after =
-    Math.max(
-      0,
-      before + delta
-    );
-
-  const actualDelta =
-    after - before;
-
-  // Se tentar retirar pontos quando já está a 0
-  if (actualDelta === 0) {
-    alert(
-      "A turma já está com 0 pontos."
-    );
-    return;
-  }
-
-  data.score = after;
-
-  const historyItem = {
-    name: action.name,
-    emoji:
-      action.emoji || "⭐",
-    delta: actualDelta,
-    before_score: before,
-    after_score: after,
-    created_at:
-      new Date().toISOString()
-  };
-
-  history.unshift(
-    historyItem
-  );
-
-  saveLocal();
-  saveLocalHistory();
-
-  render();
-
-  await saveRemote();
-  await saveRemoteHistory(
-    historyItem
-  );
-}
-
-
-// ============================================================
-// DESFAZER
-// ============================================================
-
-async function undo() {
-  if (!adminUnlocked) {
-    alert(
-      "🔒 Apenas o administrador pode desfazer alterações."
-    );
-    return;
-  }
-
-  if (!history.length) {
-    alert(
-      "Não existe nenhuma alteração para desfazer."
-    );
-    return;
-  }
-
-  const last =
-    history.shift();
-
-  data.score =
-    Math.max(
-      0,
-      Number(last.before_score) || 0
-    );
-
-  saveLocal();
-  saveLocalHistory();
-
-  render();
-
-  await saveRemote();
-}
-
-
-// ============================================================
-// HISTÓRICO
-// ============================================================
-
-function renderHistory() {
-  const container =
-    $("#history");
-
-  if (!container) {
-    return;
-  }
-
-  container.innerHTML = "";
-
-  if (!history.length) {
-    container.innerHTML = `
-      <div class="emptyHistory">
-        Ainda não existem alterações registadas.
       </div>
-    `;
 
-    return;
-  }
+      <button id="adminBtn" class="admin-button" title="Administração">
+        ⚙️
+      </button>
+    </header>
 
-  history.forEach(
-    (item) => {
-      const row =
-        document.createElement(
-          "div"
-        );
 
-      row.className =
-        "historyItem";
+    <!-- =========================
+         PONTUAÇÃO / PROGRESSO
+    ========================== -->
 
-      const delta =
-        Number(item.delta) || 0;
+    <section class="score-card">
 
-      row.innerHTML = `
-        <div class="historyEmoji">
-          ${item.emoji || "⭐"}
+      <p class="score-label">Pontuação da turma</p>
+
+      <div id="score">
+        0
+      </div>
+
+      <div class="progress-track">
+        <div id="progressBar"></div>
+      </div>
+
+      <p id="nextText">
+        Próximo objetivo: —
+      </p>
+
+      <div id="celebration"></div>
+
+    </section>
+
+
+    <!-- =========================
+         PRÉMIOS + GRÁFICO
+    ========================== -->
+
+    <section class="lower-top">
+
+      <!-- PERCURSO DE PRÉMIOS -->
+
+      <div class="card prizes-card">
+
+        <h2 class="card-title">
+          🎁 Percurso de prémios
+        </h2>
+
+        <div id="levels"></div>
+
+      </div>
+
+
+      <!-- GRÁFICO -->
+
+      <div class="card chart-card">
+
+        <h2 class="card-title">
+          📈 Progresso
+        </h2>
+
+        <div class="chart-wrap">
+
+          <svg
+            id="progressChart"
+            viewBox="0 0 600 280"
+            preserveAspectRatio="none"
+            aria-label="Gráfico da evolução dos pontos"
+          >
+
+            <line
+              x1="45"
+              y1="235"
+              x2="570"
+              y2="235"
+              stroke="#e5e7ef"
+              stroke-width="2"
+            />
+
+            <line
+              x1="45"
+              y1="35"
+              x2="45"
+              y2="235"
+              stroke="#e5e7ef"
+              stroke-width="2"
+            />
+
+            <polyline
+              id="chartLine"
+              points=""
+            ></polyline>
+
+            <g id="chartDots"></g>
+
+            <text
+              id="chartCurrentScore"
+              x="55"
+              y="55"
+            ></text>
+
+            <text
+              id="chartEmpty"
+              class="chart-empty"
+              x="300"
+              y="145"
+              text-anchor="middle"
+            >
+              Ainda não existem dados
+            </text>
+
+          </svg>
+
         </div>
 
-        <div class="historyInfo">
-          <strong>
-            ${escapeHtml(item.name)}
-          </strong>
+      </div>
 
-          <small>
-            ${formatDate(item.created_at)}
-          </small>
+    </section>
+
+
+    <!-- =========================
+         AÇÕES
+    ========================== -->
+
+    <section class="card actions-card">
+
+      <div class="actions-columns">
+
+        <!-- GANHAR PONTOS -->
+
+        <div class="action-section positive-section">
+
+          <h2 class="action-title">
+            ➕ Ganhar pontos
+          </h2>
+
+          <div id="positiveActions"></div>
+
         </div>
 
-        <div class="historyDelta ${
-          delta >= 0
-            ? "historyPositive"
-            : "historyNegative"
-        }">
-          ${
-            delta > 0
-              ? "+"
-              : ""
-          }${delta}
+
+        <!-- PERDER PONTOS -->
+
+        <div class="action-section negative-section">
+
+          <h2 class="action-title">
+            ➖ Perder pontos
+          </h2>
+
+          <div id="negativeActions"></div>
+
         </div>
-      `;
 
-      container.appendChild(
-        row
-      );
-    }
-  );
-}
+      </div>
 
+    </section>
 
-// ============================================================
-// GRÁFICO DE PROGRESSO
-// ============================================================
 
-function renderChart() {
-  const line =
-    $("#chartLine");
+    <!-- =========================
+         HISTÓRICO
+    ========================== -->
 
-  const dots =
-    $("#chartDots");
+    <section class="card history-card">
 
-  const current =
-    $("#chartCurrentScore");
+      <div class="history-header">
 
-  const empty =
-    $("#chartEmpty");
+        <h2 class="card-title">
+          📋 Histórico
+        </h2>
 
-  if (!line || !dots) {
-    return;
-  }
-
-  const values = [];
-
-  if (history.length) {
-    const chronological =
-      [...history].reverse();
-
-    values.push(
-      Math.max(
-        0,
-        Number(
-          chronological[0]
-            .before_score
-        ) || 0
-      )
-    );
-
-    chronological.forEach(
-      (item) => {
-        values.push(
-          Math.max(
-            0,
-            Number(
-              item.after_score
-            ) || 0
-          )
-        );
-      }
-    );
-  } else {
-    values.push(
-      Math.max(
-        0,
-        Number(data.score) || 0
-      )
-    );
-  }
-
-  const width = 600;
-  const height = 220;
-  const padding = 25;
-
-  const max =
-    Math.max(
-      ...values,
-      1
-    );
-
-  const usableWidth =
-    width -
-    padding * 2;
-
-  const usableHeight =
-    height -
-    padding * 2;
-
-  const points =
-    values.map(
-      (value, index) => {
-        const x =
-          values.length === 1
-            ? width / 2
-            : padding +
-              (
-                index /
-                (values.length - 1)
-              ) *
-                usableWidth;
-
-        const y =
-          height -
-          padding -
-          (
-            value / max
-          ) *
-            usableHeight;
-
-        return {
-          x,
-          y
-        };
-      }
-    );
-
-  const path =
-    points
-      .map(
-        (point, index) =>
-          `${
-            index === 0
-              ? "M"
-              : "L"
-          } ${point.x} ${point.y}`
-      )
-      .join(" ");
-
-  line.setAttribute(
-    "d",
-    path
-  );
-
-  dots.innerHTML = "";
-
-  points.forEach(
-    (point) => {
-      const circle =
-        document.createElementNS(
-          "http://www.w3.org/2000/svg",
-          "circle"
-        );
-
-      circle.setAttribute(
-        "cx",
-        point.x
-      );
-
-      circle.setAttribute(
-        "cy",
-        point.y
-      );
-
-      circle.setAttribute(
-        "r",
-        "5"
-      );
-
-      dots.appendChild(
-        circle
-      );
-    }
-  );
-
-  if (current) {
-    current.textContent =
-      `${data.score} pontos`;
-  }
-
-  if (empty) {
-    empty.style.display =
-      values.length > 1
-        ? "none"
-        : "";
-  }
-}
-
-
-// ============================================================
-// ABRIR ADMINISTRAÇÃO
-// ============================================================
-
-function openAdmin() {
-  const modal =
-    $("#adminModal");
-
-  if (!modal) {
-    return;
-  }
-
-  adminUnlocked = false;
-
-  modal.classList.remove(
-    "hidden"
-  );
-
-  if ($("#pinArea")) {
-    $("#pinArea").style.display =
-      "";
-  }
-
-  if ($("#adminForm")) {
-    $("#adminForm").style.display =
-      "none";
-  }
-
-  if ($("#pinInput")) {
-    $("#pinInput").value = "";
-    $("#pinInput").focus();
-  }
-
-  // NÃO MOSTRAR O PIN ATUAL
-  if ($("#newPinInput")) {
-    $("#newPinInput").value = "";
-
-    $("#newPinInput").placeholder =
-      "Deixe vazio para manter o PIN atual";
-  }
-}
-
-
-// ============================================================
-// FECHAR ADMINISTRAÇÃO
-// ============================================================
-
-function closeAdmin() {
-  adminUnlocked = false;
-
-  if ($("#adminModal")) {
-    $("#adminModal").classList.add(
-      "hidden"
-    );
-  }
-
-  if ($("#pinInput")) {
-    $("#pinInput").value = "";
-  }
-
-  if ($("#newPinInput")) {
-    $("#newPinInput").value = "";
-  }
-
-  render();
-}
-
-
-// ============================================================
-// VERIFICAR PIN
-// ============================================================
-
-function unlockAdmin() {
-  const enteredPin =
-    $("#pinInput")
-      ? $("#pinInput").value.trim()
-      : "";
-
-  if (!enteredPin) {
-    alert(
-      "Introduza o PIN."
-    );
-    return;
-  }
-
-  // O PIN continua a ser validado
-  // contra o PIN verdadeiro guardado.
-  if (
-    enteredPin ===
-    String(data.pin)
-  ) {
-    adminUnlocked = true;
-
-    if ($("#pinArea")) {
-      $("#pinArea").style.display =
-        "none";
-    }
-
-    if ($("#adminForm")) {
-      $("#adminForm").style.display =
-        "";
-    }
-
-    loadAdmin();
-
-    updateAdminVisibility();
-
-  } else {
-    adminUnlocked = false;
-
-    alert(
-      "PIN incorreto."
-    );
-
-    if ($("#pinInput")) {
-      $("#pinInput").value = "";
-      $("#pinInput").focus();
-    }
-  }
-}
-
-
-// ============================================================
-// CARREGAR ADMIN
-// ============================================================
-
-function loadAdmin() {
-  if (!adminUnlocked) {
-    return;
-  }
-
-  if ($("#classInput")) {
-    $("#classInput").value =
-      data.className;
-  }
-
-  // IMPORTANTE:
-  // O PIN ATUAL NUNCA É MOSTRADO.
-  if ($("#newPinInput")) {
-    $("#newPinInput").value = "";
-
-    $("#newPinInput").placeholder =
-      "Deixe vazio para manter o PIN atual";
-  }
-
-  renderAdminLevels();
-}
-
-
-// ============================================================
-// NÍVEIS NO ADMIN
-// ============================================================
-
-function renderAdminLevels() {
-  const container =
-    $("#levelInputs");
-
-  if (!container) {
-    return;
-  }
-
-  container.innerHTML = "";
-
-  data.levels.forEach(
-    (level, index) => {
-      const row =
-        document.createElement(
-          "div"
-        );
-
-      row.className =
-        "adminLevelRow";
-
-      row.innerHTML = `
-        <input
-          type="text"
-          class="levelNameInput"
-          data-index="${index}"
-          value="${escapeAttribute(level.name)}"
-          placeholder="Nome do prémio"
+        <button
+          id="clearHistory"
+          class="small-button"
         >
+          Limpar
+        </button>
 
-        <input
-          type="number"
-          class="levelPointsInput"
-          data-index="${index}"
-          value="${Number(level.points)}"
-          min="0"
-          placeholder="Pontos"
+      </div>
+
+      <div id="history"></div>
+
+    </section>
+
+  </div>
+
+
+  <!-- =========================
+       MODAL ADMINISTRAÇÃO
+  ========================== -->
+
+  <div id="adminModal" class="hidden">
+
+    <div class="modal-box">
+
+      <button id="closeAdmin">
+        ✕
+      </button>
+
+      <h2>
+        ⚙️ Administração
+      </h2>
+
+
+      <!-- PIN -->
+
+      <div id="pinArea">
+
+        <div class="form-group">
+
+          <label for="pinInput">
+            PIN de administrador
+          </label>
+
+          <input
+            id="pinInput"
+            type="password"
+            inputmode="numeric"
+            autocomplete="off"
+            placeholder="Introduza o PIN"
+          >
+
+        </div>
+
+        <button
+          id="unlockBtn"
+          class="primary-button"
         >
+          Entrar na administração
+        </button>
 
-        <input
-          type="text"
-          class="levelEmojiInput"
-          data-index="${index}"
-          value="${escapeAttribute(level.emoji || "")}"
-          maxlength="4"
-          placeholder="🏆"
-        >
-      `;
-
-      container.appendChild(
-        row
-      );
-    }
-  );
-}
+      </div>
 
 
-// ============================================================
-// GUARDAR ADMIN
-// ============================================================
+      <!-- FORMULÁRIO ADMIN -->
 
-async function saveAdmin(event) {
-  if (event) {
-    event.preventDefault();
-  }
+      <div
+        id="adminForm"
+        class="hidden"
+      >
 
-  if (!adminUnlocked) {
-    alert(
-      "🔒 Primeiro entre na Administração."
-    );
-    return;
-  }
+        <div class="form-group">
 
-  // ----------------------------------------------------------
-  // NOME DA TURMA
-  // ----------------------------------------------------------
+          <label for="classInput">
+            Nome da turma
+          </label>
 
-  if ($("#classInput")) {
-    const name =
-      $("#classInput")
-        .value
-        .trim();
+          <input
+            id="classInput"
+            type="text"
+            autocomplete="off"
+          >
 
-    if (name) {
-      data.className =
-        name;
-    }
-  }
-
-  // ----------------------------------------------------------
-  // NOVO PIN
-  // ----------------------------------------------------------
-
-  if ($("#newPinInput")) {
-    const newPin =
-      $("#newPinInput")
-        .value
-        .trim();
-
-    // Só muda se o administrador escrever algo.
-    if (newPin) {
-      data.pin = newPin;
-    }
-  }
-
-  // ----------------------------------------------------------
-  // NÍVEIS
-  // ----------------------------------------------------------
-
-  const names =
-    document.querySelectorAll(
-      ".levelNameInput"
-    );
-
-  const points =
-    document.querySelectorAll(
-      ".levelPointsInput"
-    );
-
-  const emojis =
-    document.querySelectorAll(
-      ".levelEmojiInput"
-    );
-
-  const newLevels =
-    data.levels.map(
-      (level, index) => ({
-        name:
-          names[index]
-            ? names[index].value.trim() ||
-              level.name
-            : level.name,
-
-        points:
-          points[index]
-            ? Math.max(
-                0,
-                Number(
-                  points[index].value
-                ) || 0
-              )
-            : Number(level.points),
-
-        emoji:
-          emojis[index]
-            ? emojis[index].value.trim() ||
-              level.emoji
-            : level.emoji
-      })
-    );
-
-  data.levels =
-    newLevels;
-
-  data.score =
-    Math.max(
-      0,
-      Number(data.score) || 0
-    );
-
-  saveLocal();
-
-  render();
-
-  await saveRemote();
-
-  // Limpar o campo do novo PIN.
-  if ($("#newPinInput")) {
-    $("#newPinInput").value = "";
-
-    $("#newPinInput").placeholder =
-      "Deixe vazio para manter o PIN atual";
-  }
-
-  alert(
-    "✅ Definições guardadas!"
-  );
-}
+        </div>
 
 
-// ============================================================
-// REINICIAR PONTUAÇÃO
-// ============================================================
+        <div class="form-group">
 
-async function resetClass() {
-  if (!adminUnlocked) {
-    alert(
-      "🔒 Apenas o administrador pode reiniciar a pontuação."
-    );
-    return;
-  }
+          <label for="newPinInput">
+            Alterar PIN
+          </label>
 
-  const confirmed =
-    confirm(
-      "Tem a certeza de que quer colocar a pontuação a 0?"
-    );
+          <input
+            id="newPinInput"
+            type="password"
+            inputmode="numeric"
+            autocomplete="new-password"
+            placeholder="Deixe vazio para manter o PIN atual"
+          >
 
-  if (!confirmed) {
-    return;
-  }
-
-  data.score = 0;
-
-  saveLocal();
-
-  render();
-
-  await saveRemote();
-
-  alert(
-    "✅ A pontuação voltou a 0."
-  );
-}
+        </div>
 
 
-// ============================================================
-// LIMPAR HISTÓRICO
-// ============================================================
+        <h3>
+          🏆 Níveis e prémios
+        </h3>
 
-async function clearHistory() {
-  if (!adminUnlocked) {
-    alert(
-      "🔒 Apenas o administrador pode limpar o histórico."
-    );
-    return;
-  }
-
-  if (!history.length) {
-    return;
-  }
-
-  const confirmed =
-    confirm(
-      "Tem a certeza de que quer limpar o histórico?"
-    );
-
-  if (!confirmed) {
-    return;
-  }
-
-  history = [];
-
-  saveLocalHistory();
-
-  if (
-    supabaseClient &&
-    currentClassroomId
-  ) {
-    try {
-      await supabaseClient
-        .from("score_history")
-        .delete()
-        .eq(
-          "classroom_id",
-          currentClassroomId
-        );
-    } catch (error) {
-      console.error(
-        "Erro ao limpar histórico:",
-        error
-      );
-    }
-  }
-
-  renderHistory();
-}
+        <div id="levelInputs"></div>
 
 
-// ============================================================
-// EVENTOS
-// ============================================================
+        <div class="admin-actions">
 
-function setupEvents() {
-  if ($("#adminBtn")) {
-    $("#adminBtn").addEventListener(
-      "click",
-      openAdmin
-    );
-  }
+          <button
+            id="resetBtn"
+            class="danger-button"
+          >
+            🔄 Reiniciar pontuação
+          </button>
 
-  if ($("#closeAdmin")) {
-    $("#closeAdmin").addEventListener(
-      "click",
-      closeAdmin
-    );
-  }
+          <button
+            id="adminLogout"
+            class="small-button"
+          >
+            🔒 Sair da Administração
+          </button>
 
-  if ($("#unlockBtn")) {
-    $("#unlockBtn").addEventListener(
-      "click",
-      unlockAdmin
-    );
-  }
+        </div>
 
-  if ($("#adminForm")) {
-    $("#adminForm").addEventListener(
-      "submit",
-      saveAdmin
-    );
-  }
+      </div>
 
-  if ($("#resetBtn")) {
-    $("#resetBtn").addEventListener(
-      "click",
-      resetClass
-    );
-  }
+    </div>
 
-  if ($("#clearHistory")) {
-    $("#clearHistory").addEventListener(
-      "click",
-      clearHistory
-    );
-  }
+  </div>
 
-  if ($("#adminLogout")) {
-    $("#adminLogout").addEventListener(
-      "click",
-      closeAdmin
-    );
-  }
 
-  if ($("#pinInput")) {
-    $("#pinInput").addEventListener(
-      "keydown",
-      (event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          unlockAdmin();
-        }
+  <!-- =========================
+       SCRIPTS
+  ========================== -->
+
+  <script src="config.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script src="app.js"></script>
+
+
+  <script>
+    /*
+      Botão para sair da área de administração.
+      Mantém a lógica principal no app.js.
+    */
+
+    document.addEventListener("DOMContentLoaded", () => {
+
+      const logoutButton = document.getElementById("adminLogout");
+      const closeButton = document.getElementById("closeAdmin");
+
+      if (logoutButton && closeButton) {
+        logoutButton.addEventListener("click", () => {
+          closeButton.click();
+        });
       }
-    );
-  }
 
-  document.addEventListener(
-    "keydown",
-    (event) => {
-      if (
-        event.key === "Escape" &&
-        $("#adminModal") &&
-        !$("#adminModal")
-          .classList
-          .contains("hidden")
-      ) {
-        closeAdmin();
-      }
-    }
-  );
-}
+    });
+  </script>
 
-
-// ============================================================
-// FUNÇÕES AUXILIARES
-// ============================================================
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll(
-      "&",
-      "&amp;"
-    )
-    .replaceAll(
-      "<",
-      "&lt;"
-    )
-    .replaceAll(
-      ">",
-      "&gt;"
-    )
-    .replaceAll(
-      '"',
-      "&quot;"
-    )
-    .replaceAll(
-      "'",
-      "&#039;"
-    );
-}
-
-
-function escapeAttribute(value) {
-  return escapeHtml(value);
-}
-
-
-function formatDate(dateString) {
-  if (!dateString) {
-    return "";
-  }
-
-  try {
-    return new Date(
-      dateString
-    ).toLocaleString(
-      "pt-PT",
-      {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit"
-      }
-    );
-  } catch {
-    return "";
-  }
-}
-
-
-// ============================================================
-// SINCRONIZAÇÃO AUTOMÁTICA
-// ============================================================
-
-async function autoSync() {
-  if (!supabaseClient) {
-    return;
-  }
-
-  await loadRemote();
-}
-
-
-// ============================================================
-// INICIALIZAÇÃO
-// ============================================================
-
-async function init() {
-  history =
-    loadLocalHistory();
-
-  data.score =
-    Math.max(
-      0,
-      Number(data.score) || 0
-    );
-
-  setupEvents();
-
-  render();
-
-  initSupabase();
-
-  if (supabaseClient) {
-    await loadRemote();
-  }
-
-  // Atualiza os dados de todos os dispositivos
-  // aproximadamente a cada 5 segundos.
-  setInterval(
-    autoSync,
-    5000
-  );
-
-  console.log(
-    "Desafio da Turma iniciado."
-  );
-}
-
-
-// ============================================================
-// INICIAR
-// ============================================================
-
-document.addEventListener(
-  "DOMContentLoaded",
-  init
-);
+</body>
+</html>
