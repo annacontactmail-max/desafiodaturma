@@ -44,6 +44,13 @@ const defaults = {
 
 
 /* =========================
+   ESTADO DO ADMINISTRADOR
+========================= */
+
+let adminUnlocked = false;
+
+
+/* =========================
    SUPABASE
 ========================= */
 
@@ -59,10 +66,6 @@ const sb = configured
   : null;
 
 
-/* =========================
-   DADOS LOCAIS
-========================= */
-
 let classroomId =
   localStorage.getItem("desafioClassroomId");
 
@@ -72,16 +75,12 @@ let data =
   ) || structuredClone(defaults);
 
 
-/* =========================
-   ATALHO PARA ELEMENTOS
-========================= */
-
 const $ = (selector) =>
   document.querySelector(selector);
 
 
 /* =========================
-   GUARDAR LOCALMENTE
+   GUARDAR LOCAL
 ========================= */
 
 function saveLocal() {
@@ -93,7 +92,7 @@ function saveLocal() {
 
 
 /* =========================
-   DATA/HORA
+   DATA
 ========================= */
 
 function fmtDate(iso) {
@@ -110,17 +109,12 @@ function fmtDate(iso) {
 
 
 /* =========================
-   LIGAR AO SUPABASE
+   SUPABASE
 ========================= */
 
 async function connectRemote() {
 
-  if (!sb) {
-    console.log(
-      "Supabase não configurado. A funcionar apenas localmente."
-    );
-    return;
-  }
+  if (!sb) return;
 
   try {
 
@@ -145,15 +139,17 @@ async function connectRemote() {
         .limit(1);
     }
 
+
     const {
       data: result,
       error
     } = await q;
 
+
     if (error) {
 
       console.error(
-        "Erro ao ligar ao Supabase:",
+        "Erro Supabase:",
         error
       );
 
@@ -167,10 +163,6 @@ async function connectRemote() {
         : result?.[0];
 
 
-    /* =========================
-       EXISTE TURMA
-    ========================= */
-
     if (row) {
 
       classroomId = row.id;
@@ -180,6 +172,7 @@ async function connectRemote() {
         classroomId
       );
 
+
       data.className =
         row.name || defaults.className;
 
@@ -187,12 +180,17 @@ async function connectRemote() {
         row.pin || defaults.pin;
 
       data.score =
-        Number(row.score) || 0;
+        Math.max(
+          0,
+          Number(row.score) || 0
+        );
+
 
       data.levels =
         Array.isArray(row.levels)
           ? row.levels
           : structuredClone(defaults.levels);
+
 
       data.actions =
         Array.isArray(row.actions)
@@ -206,71 +204,51 @@ async function connectRemote() {
 
       render();
 
-      return;
+    } else {
+
+      const {
+        data: newRow,
+        error: insertError
+      } = await sb
+        .from("classrooms")
+        .insert({
+          name: data.className,
+          pin: data.pin,
+          score: data.score,
+          levels: data.levels,
+          actions: data.actions
+        })
+        .select()
+        .single();
+
+
+      if (!insertError) {
+
+        classroomId =
+          newRow.id;
+
+        localStorage.setItem(
+          "desafioClassroomId",
+          classroomId
+        );
+      }
     }
-
-
-    /* =========================
-       CRIAR NOVA TURMA
-    ========================= */
-
-    const {
-      data: newRow,
-      error: insertError
-    } = await sb
-      .from("classrooms")
-      .insert({
-        name: data.className,
-        pin: data.pin,
-        score: data.score,
-        levels: data.levels,
-        actions: data.actions
-      })
-      .select()
-      .single();
-
-
-    if (insertError) {
-
-      console.error(
-        "Erro ao criar turma:",
-        insertError
-      );
-
-      return;
-    }
-
-
-    classroomId = newRow.id;
-
-    localStorage.setItem(
-      "desafioClassroomId",
-      classroomId
-    );
-
-    saveLocal();
-
-    render();
 
   } catch (error) {
 
-    console.error(
-      "Erro de ligação:",
-      error
-    );
+    console.error(error);
   }
 }
 
 
 /* =========================
-   CARREGAR HISTÓRICO
+   HISTÓRICO
 ========================= */
 
 async function loadHistory() {
 
-  if (!sb || !classroomId) {
-    return;
-  }
+  if (!sb || !classroomId) return;
+
 
   const {
     data: result,
@@ -293,7 +271,7 @@ async function loadHistory() {
   if (error) {
 
     console.error(
-      "Erro ao carregar histórico:",
+      "Erro histórico:",
       error
     );
 
@@ -303,7 +281,7 @@ async function loadHistory() {
 
   data.history =
     (result || []).map(
-      (h) => ({
+      h => ({
         id: h.id,
         date: h.created_at,
         name: h.name,
@@ -317,14 +295,13 @@ async function loadHistory() {
 
 
 /* =========================
-   ATUALIZAR TURMA
+   GUARDAR SUPABASE
 ========================= */
 
 async function pushClassroom() {
 
-  if (!sb || !classroomId) {
-    return;
-  }
+  if (!sb || !classroomId) return;
+
 
   const {
     error
@@ -348,7 +325,7 @@ async function pushClassroom() {
   if (error) {
 
     console.error(
-      "Erro ao guardar turma:",
+      "Erro ao guardar:",
       error
     );
   }
@@ -356,33 +333,127 @@ async function pushClassroom() {
 
 
 /* =========================
-   BOTÃO DE AÇÃO
+   BOTÕES DE PONTOS
 ========================= */
 
-function actionHTML(a, i) {
+function actionHTML(action, index) {
 
   return `
     <button
       class="action ${
-        a.points > 0
+        action.points > 0
           ? "positive"
           : "negative"
       }"
-      data-i="${i}"
+      data-i="${index}"
     >
+
       <span class="label">
-        ${a.emoji} ${a.name}
+        ${action.emoji}
+        ${action.name}
       </span>
 
       <span class="value">
         ${
-          a.points > 0
+          action.points > 0
             ? "+"
             : ""
-        }${a.points}
+        }${action.points}
       </span>
+
     </button>
   `;
+}
+
+
+/* =========================
+   MOSTRAR / ESCONDER
+   BOTÕES DE PONTOS
+========================= */
+
+function updateAdminVisibility() {
+
+  const actionsArea =
+    document.querySelector(
+      "#positiveActions"
+    );
+
+  const negativeArea =
+    document.querySelector(
+      "#negativeActions"
+    );
+
+
+  if (!actionsArea || !negativeArea) {
+    return;
+  }
+
+
+  if (!adminUnlocked) {
+
+    actionsArea.innerHTML = `
+      <div class="adminLocked">
+        🔒 <strong>Área do administrador</strong>
+        <br>
+        Entre na Administração para ganhar pontos.
+      </div>
+    `;
+
+
+    negativeArea.innerHTML = `
+      <div class="adminLocked">
+        🔒 <strong>Área do administrador</strong>
+        <br>
+        Entre na Administração para retirar pontos.
+      </div>
+    `;
+
+    return;
+  }
+
+
+  actionsArea.innerHTML =
+    data.actions
+      .map(
+        (action, index) =>
+          action.points > 0
+            ? actionHTML(
+                action,
+                index
+              )
+            : ""
+      )
+      .join("");
+
+
+  negativeArea.innerHTML =
+    data.actions
+      .map(
+        (action, index) =>
+          action.points < 0
+            ? actionHTML(
+                action,
+                index
+              )
+            : ""
+      )
+      .join("");
+
+
+  document
+    .querySelectorAll(".action")
+    .forEach(
+      button => {
+
+        button.onclick =
+          () =>
+            change(
+              Number(
+                button.dataset.i
+              )
+            );
+      }
+    );
 }
 
 
@@ -392,52 +463,51 @@ function actionHTML(a, i) {
 
 function renderChart() {
 
-  const area =
-    $("#chartArea");
-
   const line =
     $("#chartLine");
 
   const dots =
     $("#chartDots");
 
-  const currentScore =
+  const current =
     $("#chartCurrentScore");
 
   const empty =
     $("#chartEmpty");
 
 
-  if (
-    !area ||
-    !line ||
-    !dots
-  ) {
+  if (!line || !dots) {
     return;
   }
 
 
-  const history =
+  let history =
     [...data.history]
-      .slice()
       .reverse();
 
 
-  let values = [];
+  let values;
 
 
   if (history.length) {
 
     values =
       history.map(
-        h => Number(h.after)
+        h =>
+          Math.max(
+            0,
+            Number(h.after)
+          )
       );
 
   } else {
 
     values = [
       0,
-      Number(data.score)
+      Math.max(
+        0,
+        Number(data.score)
+      )
     ];
   }
 
@@ -453,11 +523,7 @@ function renderChart() {
   const padding = 30;
 
 
-  const minValue =
-    Math.min(
-      0,
-      ...values
-    );
+  const minValue = 0;
 
   const maxValue =
     Math.max(
@@ -517,12 +583,12 @@ function renderChart() {
   const path =
     points
       .map(
-        (p, index) =>
+        (point, index) =>
           `${
             index === 0
               ? "M"
               : "L"
-          } ${p.x} ${p.y}`
+          } ${point.x} ${point.y}`
       )
       .join(" ");
 
@@ -536,14 +602,14 @@ function renderChart() {
   dots.innerHTML =
     points
       .map(
-        p => `
+        point => `
           <circle
-            cx="${p.x}"
-            cy="${p.y}"
+            cx="${point.x}"
+            cy="${point.y}"
             r="5"
           >
             <title>
-              ${p.value} pontos
+              ${point.value} pontos
             </title>
           </circle>
         `
@@ -551,9 +617,9 @@ function renderChart() {
       .join("");
 
 
-  if (currentScore) {
+  if (current) {
 
-    currentScore.textContent =
+    current.textContent =
       `${data.score} pontos`;
   }
 
@@ -569,12 +635,10 @@ function renderChart() {
 
 
 /* =========================
-   RENDER DA APLICAÇÃO
+   RENDER
 ========================= */
 
 function render() {
-
-  /* TÍTULO */
 
   if ($("#classTitle")) {
 
@@ -583,39 +647,36 @@ function render() {
   }
 
 
-  /* PONTUAÇÃO */
-
   if ($("#score")) {
 
     $("#score").textContent =
-      data.score;
+      Math.max(
+        0,
+        data.score
+      );
   }
 
 
-  /* =========================
-     PROGRESSO
-  ========================= */
-
   const next =
     data.levels.find(
-      l =>
-        l.points >
+      level =>
+        level.points >
         data.score
     );
 
 
-  const previousLevels =
+  const previous =
     data.levels.filter(
-      l =>
-        l.points <=
+      level =>
+        level.points <=
         data.score
     );
 
 
   const prev =
-    previousLevels.length
-      ? previousLevels[
-          previousLevels.length - 1
+    previous.length
+      ? previous[
+          previous.length - 1
         ]
       : null;
 
@@ -666,42 +727,40 @@ function render() {
   }
 
 
-  /* =========================
-     NÍVEIS
-  ========================= */
+  /* NÍVEIS */
 
   if ($("#levels")) {
 
     $("#levels").innerHTML =
       data.levels
         .map(
-          l => `
+          level => `
             <div
               class="level ${
-                data.score >= l.points
+                data.score >= level.points
                   ? "unlocked"
                   : ""
               }"
             >
 
               <span class="emoji">
-                ${l.emoji}
+                ${level.emoji}
               </span>
 
               <div class="info">
 
                 <div class="name">
-                  ${l.name}
+                  ${level.name}
                 </div>
 
                 <div class="pts">
-                  ${l.points} pontos
+                  ${level.points} pontos
                 </div>
 
               </div>
 
               ${
-                data.score >= l.points
+                data.score >= level.points
                   ? `
                     <span class="badge">
                       ✓ Desbloqueado
@@ -717,65 +776,12 @@ function render() {
   }
 
 
-  /* =========================
-     AÇÕES POSITIVAS
-  ========================= */
+  /* AÇÕES */
 
-  if ($("#positiveActions")) {
-
-    $("#positiveActions").innerHTML =
-      data.actions
-        .map(
-          (a, i) =>
-            a.points > 0
-              ? actionHTML(a, i)
-              : ""
-        )
-        .join("");
-  }
+  updateAdminVisibility();
 
 
-  /* =========================
-     AÇÕES NEGATIVAS
-  ========================= */
-
-  if ($("#negativeActions")) {
-
-    $("#negativeActions").innerHTML =
-      data.actions
-        .map(
-          (a, i) =>
-            a.points < 0
-              ? actionHTML(a, i)
-              : ""
-        )
-        .join("");
-  }
-
-
-  /* =========================
-     CLIQUES
-  ========================= */
-
-  document
-    .querySelectorAll(".action")
-    .forEach(
-      button => {
-
-        button.onclick =
-          () =>
-            change(
-              Number(
-                button.dataset.i
-              )
-            );
-      }
-    );
-
-
-  /* =========================
-     HISTÓRICO
-  ========================= */
+  /* HISTÓRICO */
 
   if ($("#history")) {
 
@@ -793,38 +799,47 @@ function render() {
       $("#history").innerHTML =
         data.history
           .map(
-            (h, i) => `
+            (historyItem, index) => `
               <div class="historyItem">
 
                 <span class="when">
-                  ${fmtDate(h.date)}
+                  ${fmtDate(
+                    historyItem.date
+                  )}
                 </span>
 
                 <span class="desc">
-                  ${h.emoji} ${h.name}
+                  ${historyItem.emoji}
+                  ${historyItem.name}
                 </span>
 
                 <span
                   class="delta ${
-                    h.delta >= 0
+                    historyItem.delta >= 0
                       ? "pos"
                       : "neg"
                   }"
                 >
                   ${
-                    h.delta > 0
+                    historyItem.delta > 0
                       ? "+"
                       : ""
-                  }${h.delta}
+                  }${historyItem.delta}
                 </span>
 
-                <button
-                  class="undo"
-                  title="Desfazer"
-                  onclick="undo(${i})"
-                >
-                  ↩
-                </button>
+                ${
+                  adminUnlocked
+                    ? `
+                      <button
+                        class="undo"
+                        title="Desfazer"
+                        onclick="undo(${index})"
+                      >
+                        ↩
+                      </button>
+                    `
+                    : ""
+                }
 
               </div>
             `
@@ -834,20 +849,35 @@ function render() {
   }
 
 
-  /* GRÁFICO */
-
   renderChart();
 }
 
 
 /* =========================
-   ALTERAR PONTUAÇÃO
+   ALTERAR PONTOS
 ========================= */
 
-async function change(i) {
+async function change(index) {
+
+  /*
+   * SEGURANÇA DA INTERFACE:
+   * sem administrador desbloqueado,
+   * não é possível alterar pontos.
+   */
+
+  if (!adminUnlocked) {
+
+    alert(
+      "🔒 Apenas o administrador pode alterar os pontos."
+    );
+
+    return;
+  }
+
 
   const action =
-    data.actions[i];
+    data.actions[index];
+
 
   if (!action) {
     return;
@@ -858,8 +888,38 @@ async function change(i) {
     data.score;
 
 
-  data.score +=
-    action.points;
+  /*
+   * A pontuação nunca fica
+   * abaixo de zero.
+   */
+
+  data.score =
+    Math.max(
+      0,
+      data.score +
+        action.points
+    );
+
+
+  const actualChange =
+    data.score - before;
+
+
+  /*
+   * Se retirar pontos quando
+   * a turma já está a zero,
+   * não criamos uma entrada
+   * desnecessária no histórico.
+   */
+
+  if (actualChange === 0) {
+
+    alert(
+      "A turma já está com 0 pontos."
+    );
+
+    return;
+  }
 
 
   const historyItem = {
@@ -874,7 +934,7 @@ async function change(i) {
       action.emoji,
 
     delta:
-      action.points,
+      actualChange,
 
     before:
       before,
@@ -894,9 +954,7 @@ async function change(i) {
   render();
 
 
-  /* =========================
-     SUPABASE
-  ========================= */
+  /* SUPABASE */
 
   if (
     sb &&
@@ -942,22 +1000,16 @@ async function change(i) {
   }
 
 
-  /* =========================
-     MENSAGEM
-  ========================= */
+  /* MENSAGEM */
 
   if ($("#celebration")) {
 
     $("#celebration").textContent =
       `${
-        action.points > 0
-          ? "🎉"
-          : "📌"
-      } ${
-        action.points > 0
-          ? "+"
-          : ""
-      }${action.points} pontos — ${
+        actualChange > 0
+          ? "🎉 +"
+          : "📌 "
+      }${actualChange} pontos — ${
         action.name
       }. Total: ${
         data.score
@@ -982,9 +1034,7 @@ async function change(i) {
   }
 
 
-  /* =========================
-     VERIFICAR PRÉMIO ATINGIDO
-  ========================= */
+  /* PRÉMIO */
 
   const reached =
     data.levels.find(
@@ -1017,23 +1067,36 @@ async function change(i) {
 ========================= */
 
 window.undo =
-  async function(i) {
+  async function(index) {
 
-    const h =
-      data.history[i];
+    if (!adminUnlocked) {
+
+      alert(
+        "🔒 Apenas o administrador pode desfazer alterações."
+      );
+
+      return;
+    }
 
 
-    if (!h) {
+    const historyItem =
+      data.history[index];
+
+
+    if (!historyItem) {
       return;
     }
 
 
     data.score =
-      h.before;
+      Math.max(
+        0,
+        historyItem.before
+      );
 
 
     data.history.splice(
-      i,
+      index,
       1
     );
 
@@ -1048,14 +1111,14 @@ window.undo =
       classroomId
     ) {
 
-      if (h.id) {
+      if (historyItem.id) {
 
         await sb
           .from("score_history")
           .delete()
           .eq(
             "id",
-            h.id
+            historyItem.id
           );
       }
 
@@ -1101,15 +1164,23 @@ if ($("#adminBtn")) {
 if ($("#closeAdmin")) {
 
   $("#closeAdmin").onclick =
-    () =>
+    () => {
+
+      adminUnlocked = false;
+
+
       $("#adminModal")
         .classList
         .add("hidden");
+
+
+      render();
+    };
 }
 
 
 /* =========================
-   ENTRAR NA ADMINISTRAÇÃO
+   ENTRAR ADMIN
 ========================= */
 
 if ($("#unlockBtn")) {
@@ -1123,19 +1194,13 @@ if ($("#unlockBtn")) {
           .trim();
 
 
-      /*
-       * O PIN atualmente guardado
-       * na turma é o PIN válido.
-       *
-       * Se a aplicação ainda estiver
-       * a usar os dados locais iniciais,
-       * o PIN é 1234.
-       */
-
       if (
         enteredPin &&
         enteredPin === data.pin
       ) {
+
+        adminUnlocked = true;
+
 
         $("#pinArea")
           .classList
@@ -1149,6 +1214,8 @@ if ($("#unlockBtn")) {
 
         loadAdmin();
 
+        render();
+
       } else {
 
         alert(
@@ -1160,7 +1227,7 @@ if ($("#unlockBtn")) {
 
 
 /* =========================
-   CARREGAR ADMINISTRAÇÃO
+   CARREGAR ADMIN
 ========================= */
 
 function loadAdmin() {
@@ -1184,17 +1251,17 @@ function loadAdmin() {
     $("#levelInputs").innerHTML =
       data.levels
         .map(
-          (level, i) => `
+          (level, index) => `
             <div class="levelRow">
 
               <input
-                data-name="${i}"
+                data-name="${index}"
                 value="${level.name}"
                 aria-label="Nome do prémio"
               >
 
               <input
-                data-points="${i}"
+                data-points="${index}"
                 type="number"
                 min="0"
                 value="${level.points}"
@@ -1210,18 +1277,16 @@ function loadAdmin() {
 
 
 /* =========================
-   GUARDAR ADMINISTRAÇÃO
+   GUARDAR ADMIN
 ========================= */
 
 if ($("#adminForm")) {
 
   $("#adminForm").onsubmit =
-    async function(e) {
+    async function(event) {
 
-      e.preventDefault();
+      event.preventDefault();
 
-
-      /* TURMA */
 
       data.className =
         $("#classInput")
@@ -1230,8 +1295,6 @@ if ($("#adminForm")) {
         "Turma";
 
 
-      /* PIN */
-
       data.pin =
         $("#newPinInput")
           .value
@@ -1239,20 +1302,18 @@ if ($("#adminForm")) {
         "1234";
 
 
-      /* NÍVEIS */
-
       data.levels.forEach(
-        (level, i) => {
+        (level, index) => {
 
           const nameInput =
             document.querySelector(
-              `[data-name="${i}"]`
+              `[data-name="${index}"]`
             );
 
 
           const pointsInput =
             document.querySelector(
-              `[data-points="${i}"]`
+              `[data-points="${index}"]`
             );
 
 
@@ -1279,8 +1340,6 @@ if ($("#adminForm")) {
       );
 
 
-      /* ORDENAR NÍVEIS */
-
       data.levels.sort(
         (a, b) =>
           a.points -
@@ -1293,8 +1352,6 @@ if ($("#adminForm")) {
       render();
 
 
-      /* SUPABASE */
-
       if (
         sb &&
         classroomId
@@ -1303,8 +1360,6 @@ if ($("#adminForm")) {
         await pushClassroom();
       }
 
-
-      /* FECHAR */
 
       $("#adminModal")
         .classList
@@ -1326,6 +1381,16 @@ if ($("#clearHistory")) {
 
   $("#clearHistory").onclick =
     async function() {
+
+      if (!adminUnlocked) {
+
+        alert(
+          "🔒 Apenas o administrador pode apagar o histórico."
+        );
+
+        return;
+      }
+
 
       if (
         !confirm(
@@ -1349,24 +1414,13 @@ if ($("#clearHistory")) {
         classroomId
       ) {
 
-        const {
-          error
-        } = await sb
+        await sb
           .from("score_history")
           .delete()
           .eq(
             "classroom_id",
             classroomId
           );
-
-
-        if (error) {
-
-          console.error(
-            "Erro ao apagar histórico:",
-            error
-          );
-        }
       }
     };
 }
@@ -1380,6 +1434,16 @@ if ($("#resetBtn")) {
 
   $("#resetBtn").onclick =
     async function() {
+
+      if (!adminUnlocked) {
+
+        alert(
+          "🔒 Apenas o administrador pode fazer esta alteração."
+        );
+
+        return;
+      }
+
 
       if (
         !confirm(
@@ -1417,15 +1481,10 @@ if ($("#resetBtn")) {
 
 
 /* =========================
-   INICIALIZAÇÃO
+   INICIAR
 ========================= */
 
 render();
-
-
-/* =========================
-   SERVICE WORKER
-========================= */
 
 if (
   "serviceWorker" in navigator
@@ -1443,10 +1502,6 @@ if (
 }
 
 
-/* =========================
-   LIGAÇÃO INICIAL
-========================= */
-
 connectRemote();
 
 
@@ -1457,7 +1512,7 @@ connectRemote();
 if (sb) {
 
   setInterval(
-    async function() {
+    async () => {
 
       if (!classroomId) {
         return;
@@ -1484,12 +1539,6 @@ if (sb) {
             undefined
         ) {
 
-          /*
-           * Atualiza a pontuação e
-           * configurações quando houve
-           * alteração noutro dispositivo.
-           */
-
           if (
             Number(remote.score) !==
               Number(data.score) &&
@@ -1498,7 +1547,10 @@ if (sb) {
           ) {
 
             data.score =
-              Number(remote.score);
+              Math.max(
+                0,
+                Number(remote.score)
+              );
 
 
             data.className =
@@ -1538,7 +1590,7 @@ if (sb) {
       } catch (error) {
 
         console.warn(
-          "Erro na sincronização:",
+          "Erro sincronização:",
           error
         );
       }
