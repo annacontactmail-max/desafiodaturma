@@ -27,16 +27,27 @@ function normalizeData(){
    emoji:String(l?.emoji||"🏆")
  })).filter(l=>l.name).sort((a,b)=>a.points-b.points);
  if(!data.levels.length)data.levels=structuredClone(defaults.levels);
+ // Migração das metas antigas para o percurso definido.
+ const prizeNames={20:"Sair 5 minutos mais cedo",35:"Aula livre",50:"1 torneio",70:"Aula na rua",100:"1h de festa final de ano",130:"2h de festa final de ano",150:"2h de festa final de ano"};
+ data.levels=data.levels.map(l=>({...l,name:prizeNames[Number(l.points)]||l.name})).filter(l=>![130].includes(Number(l.points)) || Number(l.points)===150);
+ const requiredLevels=defaults.levels.filter(dl=>!data.levels.some(l=>Number(l.points)===dl.points));
+ requiredLevels.forEach(l=>data.levels.push(structuredClone(l)));
+ data.levels=data.levels.filter(l=>Number(l.points)!==130).sort((a,b)=>a.points-b.points);
  data.actions=(Array.isArray(data.actions)?data.actions:[]).map(a=>({
    name:String(a?.name||"Alteração de pontos"),
    points:Number.isFinite(Number(a?.points))?Number(a.points):0,
    emoji:String(a?.emoji||"⭐")
  }));
- if(!data.actions.length)data.actions=structuredClone(defaults.actions);
+ defaults.actions.forEach(required=>{
+   if(!data.actions.some(a=>a.name===required.name && Number(a.points)===required.points)){
+     data.actions.push(structuredClone(required));
+   }
+ });
  if(!Number.isFinite(Number(data.score)))data.score=0;
  data.score=Number(data.score);
 }
 normalizeData();
+let pendingActionIndex=null;
 function saveLocal(){localStorage.setItem(KEY,JSON.stringify(data));}
 function fmtDate(iso){return new Date(iso).toLocaleString("pt-PT",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});}
 function escapeHtml(v){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));}
@@ -85,8 +96,7 @@ function render(){
  $( "#levels").innerHTML=data.levels.map(l=>`<div class="level ${data.score>=l.points?"unlocked":""}"><span class="emoji">${l.emoji}</span><div class="info"><div class="name">${escapeHtml(l.name)}</div><div class="pts">${l.points} pontos</div></div>${data.score>=l.points?'<span class="badge">✓ Desbloqueado</span>':''}</div>`).join("");
  $( "#positiveActions").innerHTML=data.actions.map((a,i)=>a.points>0?actionHTML(a,i):"").join("");
  $( "#negativeActions").innerHTML=data.actions.map((a,i)=>a.points<0?actionHTML(a,i):"").join("");
- let pendingActionIndex=null;
-[...document.querySelectorAll(".action")].forEach(b=>b.onclick=()=>{
+ [...document.querySelectorAll(".action")].forEach(b=>b.onclick=()=>{
  pendingActionIndex=Number(b.dataset.i);
  $("#adminModal").classList.remove("hidden");
  $("#pinArea").classList.remove("hidden");
