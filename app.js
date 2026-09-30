@@ -1,8 +1,8 @@
 const KEY="desafioTurmaV2";
 const defaults={className:"Turma",pin:"1234",score:0,history:[],levels:[
- {name:"Sair mais cedo",points:20,emoji:"🟦"},{name:"Aula livre",points:35,emoji:"🟩"},
- {name:"Torneio",points:50,emoji:"🟨"},{name:"Aula na rua",points:70,emoji:"🟧"},
- {name:"Festa 1h",points:100,emoji:"🟪"},{name:"Festa 2h",points:130,emoji:"🏆"}],
+ {name:"Sair 5 minutos mais cedo",points:20,emoji:"🟦"},{name:"Aula livre",points:35,emoji:"🟩"},
+ {name:"1 torneio",points:50,emoji:"🟨"},{name:"Aula na rua",points:70,emoji:"🟧"},
+ {name:"1h de festa final de ano",points:100,emoji:"🟪"},{name:"2h de festa final de ano",points:150,emoji:"🏆"}],
 actions:[
  {name:"Semana sem ocorrências nem faltas",points:3,emoji:"🟢"},
  {name:"Elogio",points:4,emoji:"⭐"},
