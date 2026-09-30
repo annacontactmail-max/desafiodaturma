@@ -3,15 +3,20 @@
 // app.js
 // ============================================================
 
-const SUPABASE_URL = window.SUPABASE_URL;
-const SUPABASE_KEY = window.SUPABASE_ANON_KEY;
+const SUPABASE_URL =
+  window.SUPABASE_URL || "";
 
-const KEY = "desafioTurmaV2";
+const SUPABASE_KEY =
+  window.SUPABASE_ANON_KEY || "";
+
+const KEY =
+  "desafioTurmaV3";
 
 let supabase = null;
 let data = null;
 let history = [];
 let adminUnlocked = false;
+let classroomId = null;
 
 
 // ============================================================
@@ -27,70 +32,84 @@ const DEFAULT_DATA = {
   score: 0,
 
   levels: [
+
     {
       name: "Sair mais cedo",
       points: 20,
       emoji: "🟦"
     },
+
     {
       name: "Aula livre",
       points: 35,
       emoji: "🟩"
     },
+
     {
       name: "Torneio",
       points: 50,
       emoji: "🟨"
     },
+
     {
       name: "Aula na rua",
       points: 70,
       emoji: "🟧"
     },
+
     {
       name: "Festa 1h",
       points: 100,
       emoji: "🟪"
     },
+
     {
       name: "Festa 2h",
       points: 130,
       emoji: "🏆"
     }
+
   ],
 
   actions: [
+
     {
       name: "Semana sem ocorrências nem faltas",
       delta: 3,
       emoji: "🟢"
     },
+
     {
       name: "Elogio",
       delta: 4,
       emoji: "⭐"
     },
+
     {
       name: "Ocorrência",
       delta: -3,
       emoji: "🔴"
     },
+
     {
       name: "Falta injustificada",
       delta: -2,
       emoji: "🟠"
     },
+
     {
       name: "Falta disciplinar",
       delta: -10,
       emoji: "🚨"
     }
+
   ]
+
 };
 
 
 // ============================================================
-// FUNÇÕES AUXILIARES
+// AUXILIARES
 // ============================================================
 
 function $(selector) {
@@ -119,10 +138,7 @@ function cloneDefaults() {
 
 function normaliseLevels(levels) {
 
-  if (
-    !Array.isArray(levels) ||
-    levels.length === 0
-  ) {
+  if (!Array.isArray(levels) || !levels.length) {
 
     return cloneDefaults().levels;
   }
@@ -136,7 +152,14 @@ function normaliseLevels(levels) {
       ),
 
     points:
-      Number(level?.points) || 0,
+      Number.isFinite(
+        Number(level?.points)
+      )
+        ? Math.max(
+            0,
+            Number(level.points)
+          )
+        : 0,
 
     emoji:
       String(
@@ -150,10 +173,7 @@ function normaliseLevels(levels) {
 
 function normaliseActions(actions) {
 
-  if (
-    !Array.isArray(actions) ||
-    actions.length === 0
-  ) {
+  if (!Array.isArray(actions) || !actions.length) {
 
     return cloneDefaults().actions;
   }
@@ -167,7 +187,11 @@ function normaliseActions(actions) {
       ),
 
     delta:
-      Number(action?.delta) || 0,
+      Number.isFinite(
+        Number(action?.delta)
+      )
+        ? Number(action.delta)
+        : 0,
 
     emoji:
       String(
@@ -176,6 +200,43 @@ function normaliseActions(actions) {
       )
 
   }));
+}
+
+
+function buildData(source) {
+
+  source =
+    source || {};
+
+
+  return {
+
+    className:
+      source.className ||
+      source.name ||
+      DEFAULT_DATA.className,
+
+    pin:
+      source.pin ||
+      DEFAULT_DATA.pin,
+
+    score:
+      Math.max(
+        0,
+        Number(source.score) || 0
+      ),
+
+    levels:
+      normaliseLevels(
+        source.levels
+      ),
+
+    actions:
+      normaliseActions(
+        source.actions
+      )
+
+  };
 }
 
 
@@ -190,40 +251,18 @@ function loadLocalData() {
     const saved =
       localStorage.getItem(KEY);
 
+
     if (!saved) {
 
       return cloneDefaults();
     }
 
+
     const parsed =
       JSON.parse(saved);
 
-    return {
 
-      className:
-        parsed.className ||
-        DEFAULT_DATA.className,
-
-      pin:
-        parsed.pin ||
-        DEFAULT_DATA.pin,
-
-      score:
-        Math.max(
-          0,
-          Number(parsed.score) || 0
-        ),
-
-      levels:
-        normaliseLevels(
-          parsed.levels
-        ),
-
-      actions:
-        normaliseActions(
-          parsed.actions
-        )
-    };
+    return buildData(parsed);
 
   } catch (error) {
 
@@ -239,6 +278,11 @@ function loadLocalData() {
 
 function saveLocalData() {
 
+  if (!data) {
+    return;
+  }
+
+
   try {
 
     localStorage.setItem(
@@ -249,7 +293,7 @@ function saveLocalData() {
   } catch (error) {
 
     console.error(
-      "Erro ao guardar dados:",
+      "Erro ao guardar dados locais:",
       error
     );
   }
@@ -265,22 +309,34 @@ function initSupabase() {
   try {
 
     if (
-      window.supabase &&
-      SUPABASE_URL &&
-      SUPABASE_KEY
+      !window.supabase ||
+      !SUPABASE_URL ||
+      !SUPABASE_KEY
     ) {
 
-      supabase =
-        window.supabase.createClient(
-          SUPABASE_URL,
-          SUPABASE_KEY
-        );
+      console.warn(
+        "Supabase não configurado. A aplicação funcionará em modo local."
+      );
+
+      return;
     }
+
+
+    supabase =
+      window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_KEY
+      );
+
+
+    console.log(
+      "Supabase inicializado."
+    );
 
   } catch (error) {
 
     console.error(
-      "Erro Supabase:",
+      "Erro ao iniciar Supabase:",
       error
     );
 
@@ -295,12 +351,14 @@ function initSupabase() {
 
 async function loadClassroom() {
 
+  // Primeiro mostra sempre os dados locais.
   data =
     loadLocalData();
 
   renderAll();
 
 
+  // Se não houver Supabase, termina aqui.
   if (!supabase) {
     return;
   }
@@ -308,10 +366,7 @@ async function loadClassroom() {
 
   try {
 
-    const {
-      data: remote,
-      error
-    } =
+    const result =
       await supabase
         .from("classrooms")
         .select("*")
@@ -319,71 +374,58 @@ async function loadClassroom() {
         .maybeSingle();
 
 
-    if (error) {
+    if (result.error) {
 
-      console.error(
-        "Erro Supabase:",
-        error
+      console.warn(
+        "Supabase indisponível. A aplicação continuará em modo local.",
+        result.error
       );
 
       return;
     }
 
 
+    const remote =
+      result.data;
+
+
+    // Não existe turma no Supabase.
     if (!remote) {
 
       await createClassroom();
-
-      renderAll();
 
       return;
     }
 
 
-    data = {
+    classroomId =
+      remote.id;
 
-      className:
-        remote.name ||
-        DEFAULT_DATA.className,
 
-      pin:
-        remote.pin ||
-        DEFAULT_DATA.pin,
-
-      score:
-        Math.max(
-          0,
-          Number(remote.score) || 0
-        ),
-
-      levels:
-        normaliseLevels(
-          remote.levels
-        ),
-
-      actions:
-        normaliseActions(
-          remote.actions
-        )
-    };
+    // Só substituímos os dados locais depois de
+    // termos recebido realmente dados válidos.
+    data =
+      buildData(remote);
 
 
     saveLocalData();
 
+    renderAll();
+
 
     await loadHistory(
-      remote.id
+      classroomId
     );
-
-
-    renderAll();
 
   } catch (error) {
 
-    console.error(
-      "Erro ao carregar turma:",
+    console.warn(
+      "Não foi possível sincronizar com o Supabase.",
       error
     );
+
+    // IMPORTANTE:
+    // não apagamos os dados locais.
   }
 }
 
@@ -401,78 +443,60 @@ async function createClassroom() {
 
   try {
 
-    const {
-      data: created,
-      error
-    } =
+    const result =
       await supabase
         .from("classrooms")
         .insert({
 
           name:
-            DEFAULT_DATA.className,
+            data.className,
 
           pin:
-            DEFAULT_DATA.pin,
+            data.pin,
 
-          score: 0,
+          score:
+            data.score,
 
           levels:
-            DEFAULT_DATA.levels,
+            data.levels,
 
           actions:
-            DEFAULT_DATA.actions
+            data.actions
 
         })
         .select()
         .single();
 
 
-    if (error) {
+    if (result.error) {
 
-      console.error(
-        "Erro ao criar turma:",
-        error
+      console.warn(
+        "Não foi possível criar a turma no Supabase:",
+        result.error
       );
 
       return;
     }
 
 
-    if (created) {
+    if (result.data) {
 
-      data = {
+      classroomId =
+        result.data.id;
 
-        className:
-          created.name,
-
-        pin:
-          created.pin,
-
-        score:
-          Math.max(
-            0,
-            Number(created.score) || 0
-          ),
-
-        levels:
-          normaliseLevels(
-            created.levels
-          ),
-
-        actions:
-          normaliseActions(
-            created.actions
-          )
-      };
-
+      data =
+        buildData(
+          result.data
+        );
 
       saveLocalData();
+
+      renderAll();
     }
 
   } catch (error) {
 
-    console.error(
+    console.warn(
       "Erro ao criar turma:",
       error
     );
@@ -490,69 +514,105 @@ async function saveClassroom() {
 
 
   if (!supabase) {
-    return;
+    return false;
   }
 
 
   try {
 
-    const {
-      data: classroom,
-      error
-    } =
-      await supabase
-        .from("classrooms")
-        .select("id")
-        .limit(1)
-        .maybeSingle();
+    if (!classroomId) {
+
+      const result =
+        await supabase
+          .from("classrooms")
+          .select("id")
+          .limit(1)
+          .maybeSingle();
 
 
-    if (error || !classroom) {
-      return;
+      if (result.error) {
+
+        console.warn(
+          "Não foi possível localizar a turma:",
+          result.error
+        );
+
+        return false;
+      }
+
+
+      if (result.data) {
+
+        classroomId =
+          result.data.id;
+      }
     }
 
 
-    await supabase
-      .from("classrooms")
-      .update({
+    if (!classroomId) {
 
-        name:
-          data.className,
+      return false;
+    }
 
-        pin:
-          data.pin,
 
-        score:
-          Math.max(
-            0,
-            Number(data.score) || 0
-          ),
+    const result =
+      await supabase
+        .from("classrooms")
+        .update({
 
-        levels:
-          normaliseLevels(
-            data.levels
-          ),
+          name:
+            data.className,
 
-        actions:
-          normaliseActions(
-            data.actions
-          ),
+          pin:
+            data.pin,
 
-        updated_at:
-          new Date().toISOString()
+          score:
+            Math.max(
+              0,
+              Number(data.score) || 0
+            ),
 
-      })
-      .eq(
-        "id",
-        classroom.id
+          levels:
+            normaliseLevels(
+              data.levels
+            ),
+
+          actions:
+            normaliseActions(
+              data.actions
+            ),
+
+          updated_at:
+            new Date().toISOString()
+
+        })
+        .eq(
+          "id",
+          classroomId
+        );
+
+
+    if (result.error) {
+
+      console.warn(
+        "Erro ao guardar no Supabase:",
+        result.error
       );
+
+      return false;
+    }
+
+
+    return true;
 
   } catch (error) {
 
-    console.error(
-      "Erro ao guardar:",
+    console.warn(
+      "Erro ao guardar turma:",
       error
     );
+
+    return false;
   }
 }
 
@@ -561,12 +621,9 @@ async function saveClassroom() {
 // HISTÓRICO
 // ============================================================
 
-async function loadHistory(classroomId) {
+async function loadHistory(id) {
 
-  history = [];
-
-
-  if (!supabase || !classroomId) {
+  if (!supabase || !id) {
 
     renderHistory();
 
@@ -576,16 +633,13 @@ async function loadHistory(classroomId) {
 
   try {
 
-    const {
-      data: rows,
-      error
-    } =
+    const result =
       await supabase
         .from("score_history")
         .select("*")
         .eq(
           "classroom_id",
-          classroomId
+          id
         )
         .order(
           "created_at",
@@ -595,29 +649,29 @@ async function loadHistory(classroomId) {
         );
 
 
-    if (error) {
+    if (result.error) {
 
-      console.error(
-        "Erro histórico:",
-        error
+      console.warn(
+        "Não foi possível carregar o histórico:",
+        result.error
       );
-
-      renderHistory();
 
       return;
     }
 
 
     history =
-      rows || [];
+      result.data || [];
 
 
     renderHistory();
 
+    renderChart();
+
   } catch (error) {
 
-    console.error(
-      "Erro histórico:",
+    console.warn(
+      "Erro ao carregar histórico:",
       error
     );
   }
@@ -634,59 +688,57 @@ async function saveHistoryItem(item) {
 
   renderHistory();
 
+  renderChart();
 
-  if (!supabase) {
+
+  if (!supabase || !classroomId) {
     return;
   }
 
 
   try {
 
-    const {
-      data: classroom
-    } =
+    const result =
       await supabase
-        .from("classrooms")
-        .select("id")
-        .limit(1)
-        .maybeSingle();
+        .from("score_history")
+        .insert({
+
+          classroom_id:
+            classroomId,
+
+          name:
+            item.name,
+
+          emoji:
+            item.emoji,
+
+          delta:
+            item.delta,
+
+          before_score:
+            item.before_score,
+
+          after_score:
+            item.after_score,
+
+          created_at:
+            item.created_at
+
+        });
 
 
-    if (!classroom) {
-      return;
+    if (result.error) {
+
+      console.warn(
+        "Histórico não foi guardado no Supabase:",
+        result.error
+      );
     }
-
-
-    await supabase
-      .from("score_history")
-      .insert({
-
-        classroom_id:
-          classroom.id,
-
-        name:
-          item.name,
-
-        emoji:
-          item.emoji,
-
-        delta:
-          item.delta,
-
-        before_score:
-          item.before_score,
-
-        after_score:
-          item.after_score,
-
-        created_at:
-          item.created_at
-      });
 
   } catch (error) {
 
-    console.error(
-      "Erro histórico:",
+    console.warn(
+      "Erro ao guardar histórico:",
       error
     );
   }
@@ -694,7 +746,7 @@ async function saveHistoryItem(item) {
 
 
 // ============================================================
-// RENDER
+// RENDER GERAL
 // ============================================================
 
 function renderAll() {
@@ -702,6 +754,7 @@ function renderAll() {
   if (!data) {
     return;
   }
+
 
   renderHeader();
 
@@ -728,6 +781,7 @@ function renderHeader() {
   const title =
     $("#classTitle");
 
+
   if (title) {
 
     title.textContent =
@@ -745,6 +799,7 @@ function renderScore() {
 
   const score =
     $("#score");
+
 
   if (score) {
 
@@ -806,19 +861,29 @@ function renderProgress() {
   if (!next) {
 
     if (progressBar) {
+
       progressBar.style.width =
         "100%";
     }
 
+
     if (nextText) {
+
       nextText.textContent =
         "🎉 Todos os prémios alcançados!";
     }
 
+
     if (celebration) {
+
+      celebration.classList.remove(
+        "hidden"
+      );
+
       celebration.textContent =
         "🏆 Parabéns!";
     }
+
 
     return;
   }
@@ -847,16 +912,21 @@ function renderProgress() {
 
 
   const range =
-    target - previousPoints;
+    target -
+    previousPoints;
 
 
   const current =
-    score - previousPoints;
+    score -
+    previousPoints;
 
 
   let percentage =
     range > 0
-      ? (current / range) * 100
+      ? (
+          current /
+          range
+        ) * 100
       : 0;
 
 
@@ -889,10 +959,21 @@ function renderProgress() {
 
   if (celebration) {
 
-    celebration.textContent =
-      previous.length
-        ? `🎉 ${previous[previous.length - 1].name} alcançado!`
-        : "";
+    if (previous.length) {
+
+      celebration.classList.remove(
+        "hidden"
+      );
+
+      celebration.textContent =
+        `🎉 ${previous[previous.length - 1].name} alcançado!`;
+
+    } else {
+
+      celebration.classList.add(
+        "hidden"
+      );
+    }
   }
 }
 
@@ -906,31 +987,28 @@ function renderLevels() {
   const container =
     $("#levels");
 
+
   if (!container) {
     return;
   }
 
 
-  let levels =
-    Array.isArray(data.levels) &&
-    data.levels.length
-      ? data.levels
-      : cloneDefaults().levels;
+  const levels =
+    normaliseLevels(
+      data.levels
+    ).sort(
+      (a, b) =>
+        Number(a.points) -
+        Number(b.points)
+    );
 
 
   data.levels =
-    normaliseLevels(levels);
-
-
-  data.levels.sort(
-    (a, b) =>
-      Number(a.points) -
-      Number(b.points)
-  );
+    levels;
 
 
   container.innerHTML =
-    data.levels
+    levels
       .map(level => {
 
         const unlocked =
@@ -940,7 +1018,11 @@ function renderLevels() {
 
         return `
 
-          <div class="level ${unlocked ? "unlocked" : ""}">
+          <div class="level ${
+            unlocked
+              ? "unlocked"
+              : ""
+          }">
 
             <div class="emoji">
               ${escapeHtml(level.emoji)}
@@ -971,13 +1053,14 @@ function renderLevels() {
           </div>
 
         `;
+
       })
       .join("");
 }
 
 
 // ============================================================
-// GANHAR / RETIRAR PONTOS
+// AÇÕES
 // ============================================================
 
 function renderActions() {
@@ -1018,103 +1101,131 @@ function renderActions() {
     );
 
 
-  // ----------------------------------------------------------
-  // GANHAR PONTOS
-  // ----------------------------------------------------------
-
   positive.innerHTML = `
 
-    <div class="actionsTitle">
-      ${adminUnlocked
-        ? "Escolhe uma ação:"
-        : "🔒 Disponível apenas na Administração"}
-    </div>
-
     ${
-      positiveActions
-        .map(action => {
+      !adminUnlocked
+        ? `
+          <div class="adminLocked">
+            🔒 <strong>Administração necessária.</strong><br>
+            Entra na Administração para alterar a pontuação.
+          </div>
+        `
+        : positiveActions
+            .map(
+              (action, index) => {
 
-          const index =
-            actions.indexOf(action);
+                const realIndex =
+                  actions.indexOf(
+                    action
+                  );
 
 
-          return `
+                return `
 
-            <button
-              type="button"
-              class="actionBtn positive"
-              data-action-index="${index}"
-              ${adminUnlocked ? "" : "disabled"}
-            >
+                  <button
+                    type="button"
+                    class="action ${
+                      adminUnlocked
+                        ? "positive"
+                        : ""
+                    }"
+                    data-action-index="${realIndex}"
+                  >
 
-              <span class="actionEmoji">
-                ${escapeHtml(action.emoji)}
-              </span>
+                    <span class="label">
 
-              <span class="actionName">
-                ${escapeHtml(action.name)}
-              </span>
+                      <span
+                        style="margin-right:8px;"
+                      >
+                        ${escapeHtml(
+                          action.emoji
+                        )}
+                      </span>
 
-              <strong>
-                +${Math.abs(Number(action.delta))}
-              </strong>
+                      ${escapeHtml(
+                        action.name
+                      )}
 
-            </button>
+                    </span>
 
-          `;
-        })
-        .join("")
+                    <span class="value">
+                      +${Math.abs(
+                        Number(
+                          action.delta
+                        )
+                      )}
+                    </span>
+
+                  </button>
+
+                `;
+              }
+            )
+            .join("")
     }
 
   `;
 
 
-  // ----------------------------------------------------------
-  // RETIRAR PONTOS
-  // ----------------------------------------------------------
-
   negative.innerHTML = `
 
-    <div class="actionsTitle">
-      ${adminUnlocked
-        ? "Escolhe uma ação:"
-        : "🔒 Disponível apenas na Administração"}
-    </div>
-
     ${
-      negativeActions
-        .map(action => {
+      !adminUnlocked
+        ? `
+          <div class="adminLocked">
+            🔒 <strong>Administração necessária.</strong><br>
+            Entra na Administração para alterar a pontuação.
+          </div>
+        `
+        : negativeActions
+            .map(
+              action => {
 
-          const index =
-            actions.indexOf(action);
+                const realIndex =
+                  actions.indexOf(
+                    action
+                  );
 
 
-          return `
+                return `
 
-            <button
-              type="button"
-              class="actionBtn negative"
-              data-action-index="${index}"
-              ${adminUnlocked ? "" : "disabled"}
-            >
+                  <button
+                    type="button"
+                    class="action negative"
+                    data-action-index="${realIndex}"
+                  >
 
-              <span class="actionEmoji">
-                ${escapeHtml(action.emoji)}
-              </span>
+                    <span class="label">
 
-              <span class="actionName">
-                ${escapeHtml(action.name)}
-              </span>
+                      <span
+                        style="margin-right:8px;"
+                      >
+                        ${escapeHtml(
+                          action.emoji
+                        )}
+                      </span>
 
-              <strong>
-                -${Math.abs(Number(action.delta))}
-              </strong>
+                      ${escapeHtml(
+                        action.name
+                      )}
 
-            </button>
+                    </span>
 
-          `;
-        })
-        .join("")
+                    <span class="value">
+                      -${Math.abs(
+                        Number(
+                          action.delta
+                        )
+                      )}
+                    </span>
+
+                  </button>
+
+                `;
+              }
+            )
+            .join("")
     }
 
   `;
@@ -1183,6 +1294,7 @@ async function changePoints(action) {
 
     created_at:
       new Date().toISOString()
+
   };
 
 
@@ -1245,16 +1357,37 @@ async function undo() {
 
   if (
     supabase &&
+    classroomId &&
     item.id
   ) {
 
-    await supabase
-      .from("score_history")
-      .delete()
-      .eq(
-        "id",
-        item.id
+    try {
+
+      const result =
+        await supabase
+          .from("score_history")
+          .delete()
+          .eq(
+            "id",
+            item.id
+          );
+
+
+      if (result.error) {
+
+        console.warn(
+          "Não foi possível apagar o registo no Supabase:",
+          result.error
+        );
+      }
+
+    } catch (error) {
+
+      console.warn(
+        "Erro ao apagar histórico:",
+        error
       );
+    }
   }
 }
 
@@ -1285,6 +1418,7 @@ async function clearHistory() {
       "Queres apagar todo o histórico?"
     )
   ) {
+
     return;
   }
 
@@ -1293,31 +1427,44 @@ async function clearHistory() {
 
   renderHistory();
 
+  renderChart();
 
-  if (!supabase) {
+
+  if (
+    !supabase ||
+    !classroomId
+  ) {
+
     return;
   }
 
 
-  const {
-    data: classroom
-  } =
-    await supabase
-      .from("classrooms")
-      .select("id")
-      .limit(1)
-      .maybeSingle();
+  try {
+
+    const result =
+      await supabase
+        .from("score_history")
+        .delete()
+        .eq(
+          "classroom_id",
+          classroomId
+        );
 
 
-  if (classroom) {
+    if (result.error) {
 
-    await supabase
-      .from("score_history")
-      .delete()
-      .eq(
-        "classroom_id",
-        classroom.id
+      console.warn(
+        "Não foi possível apagar o histórico no Supabase:",
+        result.error
       );
+    }
+
+  } catch (error) {
+
+    console.warn(
+      "Erro ao apagar histórico:",
+      error
+    );
   }
 }
 
@@ -1343,11 +1490,13 @@ async function resetScore() {
       "Queres mesmo colocar a pontuação a zero?"
     )
   ) {
+
     return;
   }
 
 
-  data.score = 0;
+  data.score =
+    0;
 
 
   saveLocalData();
@@ -1366,6 +1515,7 @@ function renderHistory() {
 
   const container =
     $("#history");
+
 
   if (!container) {
     return;
@@ -1406,31 +1556,27 @@ function renderHistory() {
 
           <div class="historyItem">
 
-            <div class="historyEmoji">
+            <div class="when">
+              ${escapeHtml(date)}
+            </div>
+
+            <div class="desc">
+
               ${escapeHtml(
                 item.emoji || "⭐"
               )}
-            </div>
 
-            <div class="historyInfo">
-
-              <div class="historyName">
-                ${escapeHtml(
-                  item.name
-                )}
-              </div>
-
-              <div class="historyDate">
-                ${escapeHtml(date)}
-              </div>
+              ${escapeHtml(
+                item.name || "Alteração"
+              )}
 
             </div>
 
             <div
-              class="historyDelta ${
+              class="delta ${
                 delta >= 0
-                  ? "positive"
-                  : "negative"
+                  ? "pos"
+                  : "neg"
               }"
             >
               ${
@@ -1440,9 +1586,24 @@ function renderHistory() {
               }${delta}
             </div>
 
+            <button
+              type="button"
+              class="undo"
+              title="Desfazer"
+              ${
+                adminUnlocked
+                  ? ""
+                  : "disabled"
+              }
+              onclick="undo()"
+            >
+              ↩
+            </button>
+
           </div>
 
         `;
+
       })
       .join("");
 }
@@ -1475,7 +1636,7 @@ function renderChart() {
   if (current) {
 
     current.textContent =
-      data.score;
+      `${Number(data?.score) || 0} pontos`;
   }
 
 
@@ -1488,16 +1649,20 @@ function renderChart() {
 
     dots.innerHTML = "";
 
+
     if (empty) {
+
       empty.style.display =
         "block";
     }
+
 
     return;
   }
 
 
   if (empty) {
+
     empty.style.display =
       "none";
   }
@@ -1508,7 +1673,9 @@ function renderChart() {
       .reverse()
       .map(
         item =>
-          Number(item.after_score) || 0
+          Number(
+            item.after_score
+          ) || 0
       );
 
 
@@ -1520,9 +1687,14 @@ function renderChart() {
     );
 
 
-  const width = 600;
-  const height = 240;
-  const padding = 20;
+  const width =
+    600;
+
+  const height =
+    240;
+
+  const padding =
+    20;
 
 
   const points =
@@ -1560,6 +1732,7 @@ function renderChart() {
           y,
           value
         };
+
       }
     );
 
@@ -1593,9 +1766,11 @@ function renderChart() {
             cy="${point.y}"
             r="5"
           >
+
             <title>
               ${point.value} pontos
             </title>
+
           </circle>
 
         `
@@ -1613,12 +1788,14 @@ function openAdmin() {
   const modal =
     $("#adminModal");
 
+
   if (!modal) {
     return;
   }
 
 
-  adminUnlocked = false;
+  adminUnlocked =
+    false;
 
 
   updateAdminVisibility();
@@ -1627,9 +1804,11 @@ function openAdmin() {
   const pinInput =
     $("#pinInput");
 
+
   if (pinInput) {
 
-    pinInput.value = "";
+    pinInput.value =
+      "";
   }
 
 
@@ -1640,6 +1819,16 @@ function openAdmin() {
   modal.classList.add(
     "show"
   );
+
+
+  setTimeout(
+    () => {
+
+      pinInput?.focus();
+
+    },
+    50
+  );
 }
 
 
@@ -1649,7 +1838,8 @@ function closeAdmin() {
     $("#adminModal");
 
 
-  adminUnlocked = false;
+  adminUnlocked =
+    false;
 
 
   if (modal) {
@@ -1685,10 +1875,12 @@ function unlockAdmin() {
 
   if (
     enteredPin &&
-    enteredPin === data.pin
+    enteredPin ===
+      String(data.pin)
   ) {
 
-    adminUnlocked = true;
+    adminUnlocked =
+      true;
 
 
     updateAdminVisibility();
@@ -1710,7 +1902,7 @@ function unlockAdmin() {
 
 
 // ============================================================
-// ADMIN VISIBILIDADE
+// VISIBILIDADE ADMIN
 // ============================================================
 
 function updateAdminVisibility() {
@@ -1725,11 +1917,18 @@ function updateAdminVisibility() {
   if (adminUnlocked) {
 
     if (pinArea) {
+
       pinArea.style.display =
         "none";
     }
 
+
     if (adminForm) {
+
+      adminForm.classList.remove(
+        "hidden"
+      );
+
       adminForm.style.display =
         "block";
     }
@@ -1737,22 +1936,23 @@ function updateAdminVisibility() {
   } else {
 
     if (pinArea) {
+
       pinArea.style.display =
         "block";
     }
 
+
     if (adminForm) {
+
       adminForm.style.display =
         "none";
+
+      adminForm.classList.add(
+        "hidden"
+      );
     }
   }
 
-
-  // MUITO IMPORTANTE:
-  // As secções Ganhar pontos e
-  // Retirar pontos aparecem sempre.
-  // Apenas os botões ficam bloqueados
-  // quando não estamos na administração.
 
   renderActions();
 }
@@ -1780,7 +1980,8 @@ function loadAdmin() {
 
   if (newPinInput) {
 
-    newPinInput.value = "";
+    newPinInput.value =
+      "";
   }
 
 
@@ -1796,6 +1997,7 @@ function renderLevelInputs() {
 
   const container =
     $("#levelInputs");
+
 
   if (!container) {
     return;
@@ -1813,21 +2015,33 @@ function renderLevelInputs() {
       .map(
         (level, index) => `
 
-          <div class="levelInput">
+          <div
+            class="levelRow"
+            style="
+              grid-template-columns:
+              minmax(0, 1fr)
+              100px
+              70px;
+            "
+          >
 
             <input
               type="text"
               class="levelName"
               data-level="${index}"
-              value="${escapeHtml(level.name)}"
-              placeholder="Nome do prémio"
+              value="${escapeHtml(
+                level.name
+              )}"
+              placeholder="Nome"
             >
 
             <input
               type="number"
               class="levelPoints"
               data-level="${index}"
-              value="${Number(level.points)}"
+              value="${Number(
+                level.points
+              )}"
               min="0"
               placeholder="Pontos"
             >
@@ -1836,7 +2050,9 @@ function renderLevelInputs() {
               type="text"
               class="levelEmoji"
               data-level="${index}"
-              value="${escapeHtml(level.emoji)}"
+              value="${escapeHtml(
+                level.emoji
+              )}"
               placeholder="Emoji"
             >
 
@@ -1876,7 +2092,9 @@ async function saveAdminSettings() {
     const name =
       classInput.value.trim();
 
+
     if (name) {
+
       data.className =
         name;
     }
@@ -1888,7 +2106,9 @@ async function saveAdminSettings() {
     const pin =
       newPinInput.value.trim();
 
+
     if (pin) {
+
       data.pin =
         pin;
     }
@@ -1921,7 +2141,9 @@ async function saveAdminSettings() {
   ) {
 
     const name =
-      names[i].value.trim();
+      names[i]
+        .value
+        .trim();
 
 
     const pts =
@@ -1931,7 +2153,9 @@ async function saveAdminSettings() {
 
 
     const emoji =
-      emojis[i]?.value.trim() ||
+      emojis[i]
+        ?.value
+        .trim() ||
       "🎁";
 
 
@@ -1953,20 +2177,15 @@ async function saveAdminSettings() {
           : 0,
 
       emoji
+
     });
   }
 
 
-  if (levels.length) {
-
-    data.levels =
-      levels;
-
-  } else {
-
-    data.levels =
-      cloneDefaults().levels;
-  }
+  data.levels =
+    levels.length
+      ? levels
+      : cloneDefaults().levels;
 
 
   data.levels.sort(
@@ -2000,9 +2219,8 @@ async function refreshFromSupabase() {
   }
 
 
-  // Não alterar o ecrã enquanto
-  // o administrador está a trabalhar.
-
+  // Nunca substituir os dados enquanto
+  // a administração está aberta.
   if (adminUnlocked) {
     return;
   }
@@ -2010,10 +2228,7 @@ async function refreshFromSupabase() {
 
   try {
 
-    const {
-      data: remote,
-      error
-    } =
+    const result =
       await supabase
         .from("classrooms")
         .select("*")
@@ -2021,49 +2236,40 @@ async function refreshFromSupabase() {
         .maybeSingle();
 
 
-    if (error || !remote) {
+    if (
+      result.error ||
+      !result.data
+    ) {
+
       return;
     }
 
 
-    data = {
+    const remote =
+      result.data;
 
-      className:
-        remote.name ||
-        DEFAULT_DATA.className,
 
-      pin:
-        remote.pin ||
-        DEFAULT_DATA.pin,
+    classroomId =
+      remote.id;
 
-      score:
-        Math.max(
-          0,
-          Number(remote.score) || 0
-        ),
 
-      levels:
-        normaliseLevels(
-          remote.levels
-        ),
-
-      actions:
-        normaliseActions(
-          remote.actions
-        )
-    };
+    data =
+      buildData(remote);
 
 
     saveLocalData();
 
-    await loadHistory(remote.id);
-
     renderAll();
+
+
+    await loadHistory(
+      classroomId
+    );
 
   } catch (error) {
 
-    console.error(
-      "Erro de atualização:",
+    console.warn(
+      "Atualização Supabase falhou:",
       error
     );
   }
@@ -2079,6 +2285,7 @@ function setupEvents() {
   const adminBtn =
     $("#adminBtn");
 
+
   if (adminBtn) {
 
     adminBtn.addEventListener(
@@ -2090,6 +2297,7 @@ function setupEvents() {
 
   const closeAdminBtn =
     $("#closeAdmin");
+
 
   if (closeAdminBtn) {
 
@@ -2103,6 +2311,7 @@ function setupEvents() {
   const unlockBtn =
     $("#unlockBtn");
 
+
   if (unlockBtn) {
 
     unlockBtn.addEventListener(
@@ -2115,6 +2324,7 @@ function setupEvents() {
   const pinInput =
     $("#pinInput");
 
+
   if (pinInput) {
 
     pinInput.addEventListener(
@@ -2125,26 +2335,19 @@ function setupEvents() {
           event.key === "Enter"
         ) {
 
+          event.preventDefault();
+
           unlockAdmin();
         }
+
       }
     );
   }
 
 
-  const saveBtn =
-    $("#saveAdmin");
-
-  if (saveBtn) {
-
-    saveBtn.addEventListener(
-      "click",
-      saveAdminSettings
-    );
-  }
-
   const adminForm =
     $("#adminForm");
+
 
   if (adminForm) {
 
@@ -2163,6 +2366,7 @@ function setupEvents() {
   const resetBtn =
     $("#resetBtn");
 
+
   if (resetBtn) {
 
     resetBtn.addEventListener(
@@ -2174,6 +2378,7 @@ function setupEvents() {
 
   const logoutBtn =
     $("#adminLogout");
+
 
   if (logoutBtn) {
 
@@ -2187,6 +2392,7 @@ function setupEvents() {
   const clearBtn =
     $("#clearHistory");
 
+
   if (clearBtn) {
 
     clearBtn.addEventListener(
@@ -2196,9 +2402,22 @@ function setupEvents() {
   }
 
 
-  // ==========================================================
-  // BOTÕES GANHAR / RETIRAR PONTOS
-  // ==========================================================
+  const undoBtn =
+    $("#undoBtn");
+
+
+  if (undoBtn) {
+
+    undoBtn.addEventListener(
+      "click",
+      undo
+    );
+  }
+
+
+  // ----------------------------------------------------------
+  // BOTÕES DE PONTUAÇÃO
+  // ----------------------------------------------------------
 
   document.addEventListener(
     "click",
@@ -2214,9 +2433,6 @@ function setupEvents() {
         return;
       }
 
-
-      // Se não estiver na administração,
-      // não deixa alterar pontos.
 
       if (!adminUnlocked) {
 
@@ -2237,6 +2453,7 @@ function setupEvents() {
       if (
         !Number.isInteger(index)
       ) {
+
         return;
       }
 
@@ -2255,20 +2472,9 @@ function setupEvents() {
   );
 
 
-  const undoBtn =
-    $("#undoBtn");
-
-  if (undoBtn) {
-
-    undoBtn.addEventListener(
-      "click",
-      undo
-    );
-  }
-
-
   const modal =
     $("#adminModal");
+
 
   if (modal) {
 
@@ -2282,6 +2488,7 @@ function setupEvents() {
 
           closeAdmin();
         }
+
       }
     );
   }
@@ -2289,31 +2496,63 @@ function setupEvents() {
 
 
 // ============================================================
-// INICIAR
+// INICIALIZAÇÃO
 // ============================================================
 
 async function init() {
 
-  initSupabase();
+  console.log(
+    "Desafio da Turma: iniciar aplicação..."
+  );
 
-  setupEvents();
 
+  // Primeiro dados locais.
   data =
     loadLocalData();
 
+
+  // Depois interface.
+  setupEvents();
+
   renderAll();
 
+
+  // Depois Supabase.
+  initSupabase();
+
+
+  // Finalmente sincronização.
   await loadClassroom();
 
 
+  // Atualização automática.
   setInterval(
     refreshFromSupabase,
-    5000
+    10000
+  );
+
+
+  console.log(
+    "Desafio da Turma: aplicação pronta."
   );
 }
 
 
-document.addEventListener(
-  "DOMContentLoaded",
-  init
-);
+// ============================================================
+// ARRANQUE
+// ============================================================
+
+if (
+  document.readyState ===
+  "loading"
+) {
+
+  document.addEventListener(
+    "DOMContentLoaded",
+    init
+  );
+
+} else {
+
+  init();
+}
