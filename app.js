@@ -4,8 +4,14 @@ const defaults={className:"Turma",pin:"1234",score:0,history:[],levels:[
  {name:"Torneio",points:50,emoji:"🟨"},{name:"Aula na rua",points:70,emoji:"🟧"},
  {name:"Festa 1h",points:100,emoji:"🟪"},{name:"Festa 2h",points:130,emoji:"🏆"}],
 actions:[
- {name:"Semana sem ocorrências nem faltas",points:3,emoji:"🟢"},{name:"Elogio",points:4,emoji:"⭐"},
- {name:"Ocorrência",points:-3,emoji:"🔴"},{name:"Falta injustificada",points:-2,emoji:"🟠"},
+ {name:"Semana sem ocorrências nem faltas",points:3,emoji:"🟢"},
+ {name:"Elogio",points:4,emoji:"⭐"},
+ {name:"Justificar faltas",points:2,emoji:"📝"},
+ {name:"1 ponto extra",points:1,emoji:"➕"},
+ {name:"Ocorrência",points:-3,emoji:"🔴"},
+ {name:"Falta injustificada",points:-2,emoji:"🟠"},
+ {name:"Mail professor",points:-5,emoji:"📧"},
+ {name:"-1 ponto",points:-1,emoji:"➖"},
  {name:"Falta disciplinar",points:-10,emoji:"🚨"}]};
 
 const configured=window.SUPABASE_URL && window.SUPABASE_ANON_KEY;
@@ -14,6 +20,23 @@ let classroomId=localStorage.getItem("desafioClassroomId");
 let data=JSON.parse(localStorage.getItem(KEY)||"null")||structuredClone(defaults);
 
 const $=s=>document.querySelector(s);
+function normalizeData(){
+ data.levels=(Array.isArray(data.levels)?data.levels:[]).map((l,i)=>({
+   name:String(l?.name||`Prémio ${i+1}`),
+   points:Number.isFinite(Number(l?.points))?Number(l.points):0,
+   emoji:String(l?.emoji||"🏆")
+ })).filter(l=>l.name).sort((a,b)=>a.points-b.points);
+ if(!data.levels.length)data.levels=structuredClone(defaults.levels);
+ data.actions=(Array.isArray(data.actions)?data.actions:[]).map(a=>({
+   name:String(a?.name||"Alteração de pontos"),
+   points:Number.isFinite(Number(a?.points))?Number(a.points):0,
+   emoji:String(a?.emoji||"⭐")
+ }));
+ if(!data.actions.length)data.actions=structuredClone(defaults.actions);
+ if(!Number.isFinite(Number(data.score)))data.score=0;
+ data.score=Number(data.score);
+}
+normalizeData();
 function saveLocal(){localStorage.setItem(KEY,JSON.stringify(data));}
 function fmtDate(iso){return new Date(iso).toLocaleString("pt-PT",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});}
 function escapeHtml(v){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));}
@@ -29,12 +52,12 @@ async function connectRemote(){
    classroomId=row.id; localStorage.setItem("desafioClassroomId",classroomId);
    data.className=row.name; data.pin=row.pin; data.score=row.score;
    data.levels=row.levels||defaults.levels; data.actions=row.actions||defaults.actions;
-   await loadHistory(); saveLocal(); render();
+   normalizeData(); await loadHistory(); saveLocal(); render();
  } else {
    const {data:r2,error:e2}=await sb.from("classrooms").insert({
       name:data.className,pin:data.pin,score:data.score,levels:data.levels,actions:data.actions
    }).select().single();
-   if(!e2){classroomId=r2.id;localStorage.setItem("desafioClassroomId",classroomId);await loadHistory();saveLocal();render();}
+   if(!e2){classroomId=r2.id;localStorage.setItem("desafioClassroomId",classroomId);normalizeData();await loadHistory();saveLocal();render();}
  }
 }
 async function loadHistory(){
@@ -56,8 +79,9 @@ function render(){
  $( "#progressBar").style.width=pct+"%"; $( "#progressPercent").textContent=Math.round(pct)+"%";
  $( "#progressFrom").textContent=from+" pts"; $( "#progressTo").textContent=next?to+" pts":"Tudo desbloqueado";
  $( "#targetBadge").textContent=next?"🎯 Próximo":"🏆 Completo";
- $( "#nextText").textContent=next?`Faltam <strong>${next.points-data.score} pontos</strong> para ${next.emoji} ${escapeHtml(next.name)}`:"🏆 Todos os prémios desbloqueados!";
- $( "#nextText").innerHTML=$( "#nextText").textContent;
+ $( "#nextText").innerHTML=next
+   ? `Faltam <strong>${next.points-data.score} pontos</strong> para ${next.emoji} ${escapeHtml(next.name)}`
+   : "🏆 Todos os prémios desbloqueados!";
  $( "#levels").innerHTML=data.levels.map(l=>`<div class="level ${data.score>=l.points?"unlocked":""}"><span class="emoji">${l.emoji}</span><div class="info"><div class="name">${escapeHtml(l.name)}</div><div class="pts">${l.points} pontos</div></div>${data.score>=l.points?'<span class="badge">✓ Desbloqueado</span>':''}</div>`).join("");
  $( "#positiveActions").innerHTML=data.actions.map((a,i)=>a.points>0?actionHTML(a,i):"").join("");
  $( "#negativeActions").innerHTML=data.actions.map((a,i)=>a.points<0?actionHTML(a,i):"").join("");
@@ -116,7 +140,7 @@ function loadAdmin(){
 }
 $( "#adminForm").onsubmit=async e=>{e.preventDefault();data.className=$( "#classInput").value.trim()||"Turma";data.pin=$( "#newPinInput").value.trim()||"1234";
  data.levels.forEach((l,i)=>{l.name=document.querySelector(`[data-name="${i}"]`).value.trim()||l.name;l.points=Math.max(0,Number(document.querySelector(`[data-points="${i}"]`).value)||0)});
- data.levels.sort((a,b)=>a.points-b.points);saveLocal();render();if(sb&&classroomId)await pushClassroom();$( "#adminModal").classList.add("hidden")};
+ data.levels.sort((a,b)=>a.points-b.points);normalizeData();saveLocal();render();if(sb&&classroomId)await pushClassroom();$( "#adminModal").classList.add("hidden")};
 $( "#clearHistory").onclick=async()=>{if(confirm("Apagar todo o histórico?")){data.history=[];saveLocal();render();if(sb&&classroomId)await sb.from("score_history").delete().eq("classroom_id",classroomId);}};
 $( "#resetBtn").onclick=async()=>{if(confirm("Repor todos os dados de exemplo?")){data=structuredClone(defaults);saveLocal();render();if(sb&&classroomId)await pushClassroom();loadAdmin()}};
 
