@@ -85,7 +85,15 @@ function render(){
  $( "#levels").innerHTML=data.levels.map(l=>`<div class="level ${data.score>=l.points?"unlocked":""}"><span class="emoji">${l.emoji}</span><div class="info"><div class="name">${escapeHtml(l.name)}</div><div class="pts">${l.points} pontos</div></div>${data.score>=l.points?'<span class="badge">✓ Desbloqueado</span>':''}</div>`).join("");
  $( "#positiveActions").innerHTML=data.actions.map((a,i)=>a.points>0?actionHTML(a,i):"").join("");
  $( "#negativeActions").innerHTML=data.actions.map((a,i)=>a.points<0?actionHTML(a,i):"").join("");
- [...document.querySelectorAll(".action")].forEach(b=>b.onclick=()=>change(Number(b.dataset.i)));
+ let pendingActionIndex=null;
+[...document.querySelectorAll(".action")].forEach(b=>b.onclick=()=>{
+ pendingActionIndex=Number(b.dataset.i);
+ $("#adminModal").classList.remove("hidden");
+ $("#pinArea").classList.remove("hidden");
+ $("#adminForm").classList.add("hidden");
+ $("#pinInput").value="";
+ $("#pinInput").focus();
+});
  $( "#history").innerHTML=data.history.length?data.history.map((h,i)=>`<div class="historyItem"><span class="when">${fmtDate(h.date)}</span><span class="desc">${h.emoji} ${escapeHtml(h.name)}</span><span class="delta ${h.delta>=0?"pos":"neg"}">${h.delta>0?"+":""}${h.delta}</span><button class="undo" title="Desfazer" onclick="undo(${i})">↩</button></div>`).join(""):"<p class='empty'>Ainda não há alterações.</p>";
  drawChart();
 }
@@ -133,7 +141,17 @@ window.undo=async function(i){
 };
 $( "#adminBtn").onclick=()=>{$( "#adminModal").classList.remove("hidden");$( "#pinArea").classList.remove("hidden");$( "#adminForm").classList.add("hidden");$( "#pinInput").value=""};
 $( "#closeAdmin").onclick=()=>$( "#adminModal").classList.add("hidden");
-$( "#unlockBtn").onclick=()=>{if($( "#pinInput").value===data.pin){$( "#pinArea").classList.add("hidden");$( "#adminForm").classList.remove("hidden");loadAdmin()}else alert("PIN incorreto.")};
+$( "#unlockBtn").onclick=async()=>{
+ if($("#pinInput").value===data.pin){
+   const actionIndex=pendingActionIndex;
+   pendingActionIndex=null;
+   $("#adminModal").classList.add("hidden");
+   if(actionIndex!==null){await change(actionIndex);return;}
+   $("#pinArea").classList.add("hidden");
+   $("#adminForm").classList.remove("hidden");
+   loadAdmin();
+ }else alert("PIN incorreto. Só a administração pode alterar os pontos.");
+};
 function loadAdmin(){
  $( "#classInput").value=data.className;$( "#newPinInput").value=data.pin;
  $( "#levelInputs").innerHTML=data.levels.map((l,i)=>`<div class="levelRow"><input data-name="${i}" value="${escapeHtml(l.name)}" aria-label="Nome do prémio"><input data-points="${i}" type="number" min="0" value="${l.points}" aria-label="Pontos"></div>`).join("");
