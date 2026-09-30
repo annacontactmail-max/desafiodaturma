@@ -15,7 +15,8 @@ let data=JSON.parse(localStorage.getItem(KEY)||"null")||structuredClone(defaults
 
 const $=s=>document.querySelector(s);
 function saveLocal(){localStorage.setItem(KEY,JSON.stringify(data));}
-function fmtDate(iso){return new Date(iso).toLocaleString("pt-PT",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}
+function fmtDate(iso){return new Date(iso).toLocaleString("pt-PT",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});}
+function escapeHtml(v){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));}
 
 async function connectRemote(){
  if(!sb)return;
@@ -27,14 +28,13 @@ async function connectRemote(){
  if(row){
    classroomId=row.id; localStorage.setItem("desafioClassroomId",classroomId);
    data.className=row.name; data.pin=row.pin; data.score=row.score;
-   data.levels=row.levels; data.actions=row.actions;
-   await loadHistory();
-   saveLocal(); render();
+   data.levels=row.levels||defaults.levels; data.actions=row.actions||defaults.actions;
+   await loadHistory(); saveLocal(); render();
  } else {
    const {data:r2,error:e2}=await sb.from("classrooms").insert({
       name:data.className,pin:data.pin,score:data.score,levels:data.levels,actions:data.actions
    }).select().single();
-   if(!e2){classroomId=r2.id;localStorage.setItem("desafioClassroomId",classroomId);await loadHistory();}
+   if(!e2){classroomId=r2.id;localStorage.setItem("desafioClassroomId",classroomId);await loadHistory();saveLocal();render();}
  }
 }
 async function loadHistory(){
@@ -46,30 +46,59 @@ async function pushClassroom(){
  if(!sb||!classroomId)return;
  await sb.from("classrooms").update({name:data.className,pin:data.pin,score:data.score,levels:data.levels,actions:data.actions,updated_at:new Date().toISOString()}).eq("id",classroomId);
 }
-function actionHTML(a,i){return `<button class="action ${a.points>0?'positive':'negative'}" data-i="${i}"><span class="label">${a.emoji} ${a.name}</span><span class="value">${a.points>0?"+":""}${a.points}</span></button>`}
+function actionHTML(a,i){return `<button class="action ${a.points>0?"positive":"negative"}" data-i="${i}"><span class="label"><span class="actionEmoji">${a.emoji}</span><span>${escapeHtml(a.name)}</span></span><span class="value">${a.points>0?"+":""}${a.points}</span></button>`;}
+
 function render(){
- $("#classTitle").textContent=data.className; $("#score").textContent=data.score;
+ $( "#classTitle").textContent=data.className; $( "#score").textContent=data.score;
  const next=data.levels.find(l=>l.points>data.score),prev=data.levels.filter(l=>l.points<=data.score).at(-1);
- const from=prev?.points||0,to=next?.points||Math.max(data.score,1);
- $("#progressBar").style.width=(next?Math.max(0,Math.min(100,(data.score-from)/(to-from)*100)):100)+"%";
- $("#nextText").textContent=next?`Próximo objetivo: ${next.emoji} ${next.name} — faltam ${next.points-data.score} pontos`:"🏆 Todos os prémios desbloqueados!";
- $("#levels").innerHTML=data.levels.map(l=>`<div class="level ${data.score>=l.points?"unlocked":""}"><span class="emoji">${l.emoji}</span><div class="info"><div class="name">${l.name}</div><div class="pts">${l.points} pontos</div></div>${data.score>=l.points?'<span class="badge">✓ Desbloqueado</span>':''}</div>`).join("");
- $("#positiveActions").innerHTML=data.actions.map((a,i)=>a.points>0?actionHTML(a,i):"").join("");
- $("#negativeActions").innerHTML=data.actions.map((a,i)=>a.points<0?actionHTML(a,i):"").join("");
+ const from=prev?.points||0,to=next?.points||Math.max(data.score,from+1);
+ const pct=next?Math.max(0,Math.min(100,((data.score-from)/(to-from))*100)):100;
+ $( "#progressBar").style.width=pct+"%"; $( "#progressPercent").textContent=Math.round(pct)+"%";
+ $( "#progressFrom").textContent=from+" pts"; $( "#progressTo").textContent=next?to+" pts":"Tudo desbloqueado";
+ $( "#targetBadge").textContent=next?"🎯 Próximo":"🏆 Completo";
+ $( "#nextText").textContent=next?`Faltam <strong>${next.points-data.score} pontos</strong> para ${next.emoji} ${escapeHtml(next.name)}`:"🏆 Todos os prémios desbloqueados!";
+ $( "#nextText").innerHTML=$( "#nextText").textContent;
+ $( "#levels").innerHTML=data.levels.map(l=>`<div class="level ${data.score>=l.points?"unlocked":""}"><span class="emoji">${l.emoji}</span><div class="info"><div class="name">${escapeHtml(l.name)}</div><div class="pts">${l.points} pontos</div></div>${data.score>=l.points?'<span class="badge">✓ Desbloqueado</span>':''}</div>`).join("");
+ $( "#positiveActions").innerHTML=data.actions.map((a,i)=>a.points>0?actionHTML(a,i):"").join("");
+ $( "#negativeActions").innerHTML=data.actions.map((a,i)=>a.points<0?actionHTML(a,i):"").join("");
  [...document.querySelectorAll(".action")].forEach(b=>b.onclick=()=>change(Number(b.dataset.i)));
- $("#history").innerHTML=data.history.length?data.history.map((h,i)=>`<div class="historyItem"><span class="when">${fmtDate(h.date)}</span><span class="desc">${h.emoji} ${h.name}</span><span class="delta ${h.delta>=0?'pos':'neg'}">${h.delta>0?"+":""}${h.delta}</span><button class="undo" title="Desfazer" onclick="undo(${i})">↩</button></div>`).join(""):"<p style='color:#94a3b8'>Ainda não há alterações.</p>";
+ $( "#history").innerHTML=data.history.length?data.history.map((h,i)=>`<div class="historyItem"><span class="when">${fmtDate(h.date)}</span><span class="desc">${h.emoji} ${escapeHtml(h.name)}</span><span class="delta ${h.delta>=0?"pos":"neg"}">${h.delta>0?"+":""}${h.delta}</span><button class="undo" title="Desfazer" onclick="undo(${i})">↩</button></div>`).join(""):"<p class='empty'>Ainda não há alterações.</p>";
+ drawChart();
 }
+
+function drawChart(){
+ const canvas=$( "#progressChart"), empty=$( "#chartEmpty"), trend=$( "#trend");
+ const points=[...data.history].reverse().map(h=>Number(h.after));
+ if(!points.length){canvas.style.display="none";empty.style.display="grid";trend.textContent="Sem registos";return;}
+ canvas.style.display="block";empty.style.display="none";
+ const rect=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1,w=Math.max(320,rect.width),h=Math.max(210,rect.height);
+ canvas.width=w*dpr;canvas.height=h*dpr;const ctx=canvas.getContext("2d");ctx.scale(dpr,dpr);
+ const pad={l:42,r:18,t:20,b:30}, cw=w-pad.l-pad.r,ch=h-pad.t-pad.b;
+ const all=[0,...points],min=Math.min(...all),max=Math.max(...all),range=Math.max(10,max-min);
+ const yMin=Math.min(0,min)-Math.max(2,range*.12),yMax=Math.max(0,max)+Math.max(2,range*.12);
+ const x=i=>pad.l+(points.length===1?cw/2:i*cw/(points.length-1));
+ const y=v=>pad.t+(yMax-v)/(yMax-yMin)*ch;
+ ctx.clearRect(0,0,w,h);ctx.lineWidth=1;ctx.font="12px system-ui,sans-serif";
+ ctx.strokeStyle="rgba(100,116,139,.16)";ctx.fillStyle="#64748b";
+ for(let i=0;i<=4;i++){const v=yMin+(yMax-yMin)*i/4,yy=y(v);ctx.beginPath();ctx.moveTo(pad.l,yy);ctx.lineTo(w-pad.r,yy);ctx.stroke();ctx.fillText(Math.round(v),6,yy+4);}
+ ctx.beginPath();points.forEach((v,i)=>i?ctx.lineTo(x(i),y(v)):ctx.moveTo(x(i),y(v)));ctx.strokeStyle="#2563eb";ctx.lineWidth=3;ctx.stroke();
+ ctx.lineTo(x(points.length-1),pad.t+ch);ctx.lineTo(x(0),pad.t+ch);ctx.closePath();ctx.fillStyle="rgba(37,99,235,.10)";ctx.fill();
+ points.forEach((v,i)=>{ctx.beginPath();ctx.arc(x(i),y(v),4.5,0,Math.PI*2);ctx.fillStyle="#fff";ctx.fill();ctx.strokeStyle="#2563eb";ctx.lineWidth=2;ctx.stroke();});
+ const first=points[0],last=points.at(-1),diff=last-first;
+ trend.textContent=(diff>0?"↗ ":"")+ (diff<0?"↘ ":"") + (diff===0?"→ ":"") + (diff>0?"+":"")+diff+" pts";
+ trend.className="trend "+(diff>0?"up":diff<0?"down":"flat");
+}
+
 async function change(i){
- const a=data.actions[i], before=data.score; data.score+=a.points;
+ const a=data.actions[i],before=data.score; data.score+=a.points;
  const h={date:new Date().toISOString(),name:a.name,emoji:a.emoji,delta:a.points,before,after:data.score};
- data.history.unshift(h); saveLocal(); render();
+ data.history.unshift(h);saveLocal();render();
  if(sb&&classroomId){
    const {data:r,error}=await sb.from("score_history").insert({classroom_id:classroomId,name:h.name,emoji:h.emoji,delta:h.delta,before_score:h.before,after_score:h.after}).select().single();
-   if(!error)h.id=r.id;
-   await pushClassroom();
+   if(!error)h.id=r.id; await pushClassroom();
  }
- $("#celebration").textContent=`${a.points>0?"🎉":"📌"} ${a.points>0?"+":""}${a.points} pontos — ${a.name}. Total: ${data.score}`;
- $("#celebration").classList.remove("hidden");setTimeout(()=>$("#celebration").classList.add("hidden"),2200);
+ $( "#celebration").textContent=`${a.points>0?"🎉":"📌"} ${a.points>0?"+":""}${a.points} pontos — ${a.name}. Total: ${data.score}`;
+ $( "#celebration").classList.remove("hidden");setTimeout(()=>$( "#celebration").classList.add("hidden"),2200);
  const reached=data.levels.find(l=>l.points>before&&l.points<=data.score);
  if(reached)setTimeout(()=>alert(`🎊 OBJETIVO ATINGIDO!\n\n${reached.emoji} ${reached.name}\n\nA turma chegou aos ${reached.points} pontos!`),100);
 }
@@ -77,34 +106,20 @@ window.undo=async function(i){
  const h=data.history[i];if(!h)return;
  data.score=h.before;data.history.splice(i,1);saveLocal();render();
  if(sb&&classroomId){if(h.id)await sb.from("score_history").delete().eq("id",h.id);await pushClassroom();}
-}
-$("#adminBtn").onclick=()=>{$("#adminModal").classList.remove("hidden");$("#pinArea").classList.remove("hidden");$("#adminForm").classList.add("hidden");$("#pinInput").value=""};
-$("#closeAdmin").onclick=()=>$("#adminModal").classList.add("hidden");
-$("#unlockBtn").onclick=()=>{if($("#pinInput").value===data.pin){$("#pinArea").classList.add("hidden");$("#adminForm").classList.remove("hidden");loadAdmin()}else alert("PIN incorreto.")};
+};
+$( "#adminBtn").onclick=()=>{$( "#adminModal").classList.remove("hidden");$( "#pinArea").classList.remove("hidden");$( "#adminForm").classList.add("hidden");$( "#pinInput").value=""};
+$( "#closeAdmin").onclick=()=>$( "#adminModal").classList.add("hidden");
+$( "#unlockBtn").onclick=()=>{if($( "#pinInput").value===data.pin){$( "#pinArea").classList.add("hidden");$( "#adminForm").classList.remove("hidden");loadAdmin()}else alert("PIN incorreto.")};
 function loadAdmin(){
- $("#classInput").value=data.className;$("#newPinInput").value=data.pin;
- $("#levelInputs").innerHTML=data.levels.map((l,i)=>`<div class="levelRow"><input data-name="${i}" value="${l.name}" aria-label="Nome do prémio"><input data-points="${i}" type="number" min="0" value="${l.points}" aria-label="Pontos"></div>`).join("");
+ $( "#classInput").value=data.className;$( "#newPinInput").value=data.pin;
+ $( "#levelInputs").innerHTML=data.levels.map((l,i)=>`<div class="levelRow"><input data-name="${i}" value="${escapeHtml(l.name)}" aria-label="Nome do prémio"><input data-points="${i}" type="number" min="0" value="${l.points}" aria-label="Pontos"></div>`).join("");
 }
-$("#adminForm").onsubmit=async e=>{e.preventDefault();data.className=$("#classInput").value.trim()||"Turma";data.pin=$("#newPinInput").value.trim()||"1234";
+$( "#adminForm").onsubmit=async e=>{e.preventDefault();data.className=$( "#classInput").value.trim()||"Turma";data.pin=$( "#newPinInput").value.trim()||"1234";
  data.levels.forEach((l,i)=>{l.name=document.querySelector(`[data-name="${i}"]`).value.trim()||l.name;l.points=Math.max(0,Number(document.querySelector(`[data-points="${i}"]`).value)||0)});
- data.levels.sort((a,b)=>a.points-b.points);saveLocal();render();if(sb&&classroomId)await pushClassroom();$("#adminModal").classList.add("hidden")};
-$("#clearHistory").onclick=async()=>{if(confirm("Apagar todo o histórico?")){data.history=[];saveLocal();render();if(sb&&classroomId){await sb.from("score_history").delete().eq("classroom_id",classroomId);}}};
-$("#resetBtn").onclick=async()=>{if(confirm("Repor todos os dados de exemplo?")){data=structuredClone(defaults);saveLocal();render();if(sb&&classroomId)await pushClassroom();loadAdmin()}};
+ data.levels.sort((a,b)=>a.points-b.points);saveLocal();render();if(sb&&classroomId)await pushClassroom();$( "#adminModal").classList.add("hidden")};
+$( "#clearHistory").onclick=async()=>{if(confirm("Apagar todo o histórico?")){data.history=[];saveLocal();render();if(sb&&classroomId)await sb.from("score_history").delete().eq("classroom_id",classroomId);}};
+$( "#resetBtn").onclick=async()=>{if(confirm("Repor todos os dados de exemplo?")){data=structuredClone(defaults);saveLocal();render();if(sb&&classroomId)await pushClassroom();loadAdmin()}};
 
-render();
-if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js");
+render();window.addEventListener("resize",drawChart);
 connectRemote();
-
-if(sb){
- setInterval(async()=>{
-   const {data:r}=await sb.from("classrooms").select("*").eq("id",classroomId).maybeSingle();
-   if(r && r.updated_at!==undefined){
-      // O dispositivo atual é a fonte da verdade durante uma edição;
-      // atualizações externas são aplicadas quando o score local não mudou.
-      if(Number(r.score)!==data.score && document.visibilityState==="visible"){
-         data.score=r.score;data.className=r.name;data.levels=r.levels;data.actions=r.actions;
-         await loadHistory();saveLocal();render();
-      }
-   }
- },5000);
-}
+if(sb)setInterval(async()=>{const {data:r}=await sb.from("classrooms").select("*").eq("id",classroomId).maybeSingle();if(r&&Number(r.score)!==data.score&&document.visibilityState==="visible"){data.score=r.score;data.className=r.name;data.levels=r.levels;data.actions=r.actions;await loadHistory();saveLocal();render();}},5000);
